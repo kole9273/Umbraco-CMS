@@ -1,8 +1,8 @@
 function RowConfigController($scope) {
-    
-    $scope.currentRow = angular.copy($scope.dialogOptions.currentRow);
-    $scope.editors = $scope.dialogOptions.editors;
-    $scope.columns = $scope.dialogOptions.columns;
+
+    $scope.currentRow = $scope.model.currentRow;
+    $scope.editors = $scope.model.editors;
+    $scope.columns = $scope.model.columns;
 
     $scope.scaleUp = function(section, max, overflow) {
         var add = 1;
@@ -14,23 +14,13 @@ function RowConfigController($scope) {
     };
 
     $scope.scaleDown = function(section) {
-        var remove = (section.grid > 1) ? 1 : section.grid;
+        var remove = (section.grid > 1) ? 1 : 0;
         section.grid = section.grid - remove;
     };
 
     $scope.percentage = function(spans) {
         return ((spans / $scope.columns) * 100).toFixed(8);
     };
-
-    $scope.toggleCollection = function(collection, toggle) {
-        if (toggle) {
-            collection = [];
-        }
-        else {
-            delete collection;
-        }
-    };
-
 
     /****************
         area
@@ -55,12 +45,27 @@ function RowConfigController($scope) {
                 row.areas.push(cell);
             }
             $scope.currentCell = cell;
+            $scope.currentCell.allowAll = cell.allowAll || !cell.allowed || !cell.allowed.length;
         }
     };
 
-    $scope.deleteArea = function(index) {
-        $scope.currentRow.areas.splice(index, 1);
+    $scope.toggleAllowed = function (cell) {
+        if (cell.allowed) {
+            delete cell.allowed;
+        }
+        else {
+            cell.allowed = [];
+        }
+    }
+
+    $scope.deleteArea = function (cell, row) {
+    	if ($scope.currentCell === cell) {
+    		$scope.currentCell = undefined;
+    	}
+    	var index = row.areas.indexOf(cell)
+    	row.areas.splice(index, 1);
     };
+
     $scope.closeArea = function() {
         $scope.currentCell = undefined;
     };
@@ -88,10 +93,6 @@ function RowConfigController($scope) {
         }
     }, true);
 
-    $scope.complete = function () {
-        angular.extend($scope.dialogOptions.currentRow, $scope.currentRow);
-        $scope.close();
-    }
 }
 
 angular.module("umbraco").controller("Umbraco.PropertyEditors.GridPrevalueEditor.RowConfigController", RowConfigController);

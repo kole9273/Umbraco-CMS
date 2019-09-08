@@ -10,13 +10,7 @@ namespace Umbraco.Core.Models.Rdbms
     [ExplicitColumns]
     internal class NodeDto
     {
-        public NodeDto()
-        {
-            //By default, always generate a new guid
-            UniqueId = Guid.NewGuid();
-        }
-
-        public const int NodeIdSeed = 1050;
+        public const int NodeIdSeed = 1060;
 
         [Column("id")]
         [PrimaryKeyColumn(Name = "PK_structure", IdentitySeed = NodeIdSeed)]
@@ -41,6 +35,7 @@ namespace Umbraco.Core.Models.Rdbms
 
         [Column("path")]
         [Length(150)]
+        [Index(IndexTypes.NonClustered, Name = "IX_umbracoNodePath")]
         public string Path { get; set; }
 
         [Column("sortOrder")]

@@ -7,7 +7,8 @@ using Umbraco.Core;
 
 namespace umbraco.controls.Images
 {
-	public partial class ImageViewer : UserControl
+    [Obsolete("This is no longer used and will be removed in future versions")]
+    public partial class ImageViewer : UserControl
 	{
 
 		public ImageViewer()
@@ -110,7 +111,7 @@ namespace umbraco.controls.Images
                 }
 
                 string ext = MediaItemPath.Substring(MediaItemPath.LastIndexOf(".") + 1, MediaItemPath.Length - MediaItemPath.LastIndexOf(".") - 1);
-                MediaItemThumbnailPath = MediaItemPath.Replace("." + ext, "_thumb.jpg");
+                MediaItemThumbnailPath = MediaItemPath.Replace("." + ext, "_thumb." + ext);
 
                 ImageFound = true;
             }

@@ -1,8 +1,10 @@
-﻿using System.Text;
+﻿using System;
+using System.Text;
 using System.Xml;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Web;
 using Newtonsoft.Json;
 using Umbraco.Core.Media;
 
@@ -10,27 +12,32 @@ namespace Umbraco.Web.Media.EmbedProviders
 {
     //TODO: Make all Http calls async
 
-    public abstract class AbstractOEmbedProvider: IEmbedProvider
+    public abstract class AbstractOEmbedProvider : IEmbedProvider
     {
+        private static HttpClient _httpClient;
+
         public virtual bool SupportsDimensions
         {
             get { return true; }
         }
 
         [ProviderSetting]
-        public string APIEndpoint{ get;set; }
+        public string APIEndpoint { get; set; }
 
         [ProviderSetting]
-        public Dictionary<string, string> RequestParams{ get;set; }
+        public Dictionary<string, string> RequestParams { get; set; }
 
         public abstract string GetMarkup(string url, int maxWidth, int maxHeight);
 
         public virtual string BuildFullUrl(string url, int maxWidth, int maxHeight)
         {
+            if (Uri.IsWellFormedUriString(url, UriKind.RelativeOrAbsolute) == false)
+                throw new ArgumentException("Not a valid Url");
+
             var fullUrl = new StringBuilder();
 
             fullUrl.Append(APIEndpoint);
-            fullUrl.Append("?url=" + url);
+            fullUrl.Append("?url=" + HttpUtility.UrlEncode(url));
 
             foreach (var p in RequestParams)
                 fullUrl.Append(string.Format("&{0}={1}", p.Key, p.Value));
@@ -46,9 +53,13 @@ namespace Umbraco.Web.Media.EmbedProviders
 
         public virtual string DownloadResponse(string url)
         {
-            using (var webClient = new WebClient())
+            if (_httpClient == null)
+                _httpClient = new HttpClient();
+
+            using (var request = new HttpRequestMessage(HttpMethod.Get, url))
             {
-                return webClient.DownloadString(url);
+                var response = _httpClient.SendAsync(request).Result;
+                return response.Content.ReadAsStringAsync().Result;
             }
         }
 

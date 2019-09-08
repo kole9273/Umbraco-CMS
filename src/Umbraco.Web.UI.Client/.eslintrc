@@ -1,0 +1,24 @@
+{
+	"env": {
+        "browser": true
+    },
+
+    "rules": {
+        "comma-dangle": ["error", "never"]
+    },
+
+    "globals": {
+        "angular": false,
+        "_": false,
+        "$": false,
+        "tinymce": false,
+        "tinyMCE": false,
+        "FileReader": false,
+        "Umbraco": false,
+        "window": false,
+        "LazyLoad": false,
+        "ActiveXObject": false,
+        "Bloodhound": false
+    }
+
+}

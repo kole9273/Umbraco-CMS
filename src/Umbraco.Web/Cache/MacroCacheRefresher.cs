@@ -8,6 +8,7 @@ using umbraco;
 using Umbraco.Core.Persistence.Repositories;
 using umbraco.interfaces;
 using System.Linq;
+using Newtonsoft.Json;
 using Macro = umbraco.cms.businesslogic.macro.Macro;
 
 namespace Umbraco.Web.Cache
@@ -47,8 +48,7 @@ namespace Umbraco.Web.Cache
         /// <returns></returns>
         private static JsonPayload[] DeserializeFromJsonPayload(string json)
         {
-            var serializer = new JavaScriptSerializer();
-            var jsonObject = serializer.Deserialize<JsonPayload[]>(json);
+            var jsonObject = JsonConvert.DeserializeObject<JsonPayload[]>(json);
             return jsonObject;
         }
 
@@ -59,9 +59,8 @@ namespace Umbraco.Web.Cache
         /// <returns></returns>
         internal static string SerializeToJsonPayload(params Macro[] macros)
         {
-            var serializer = new JavaScriptSerializer();
             var items = macros.Select(FromMacro).ToArray();
-            var json = serializer.Serialize(items);
+            var json = JsonConvert.SerializeObject(items);
             return json;
         }
 
@@ -72,9 +71,8 @@ namespace Umbraco.Web.Cache
         /// <returns></returns>
         internal static string SerializeToJsonPayload(params IMacro[] macros)
         {
-            var serializer = new JavaScriptSerializer();
             var items = macros.Select(FromMacro).ToArray();
-            var json = serializer.Serialize(items);
+            var json = JsonConvert.SerializeObject(items);
             return json;
         }
 
@@ -85,9 +83,8 @@ namespace Umbraco.Web.Cache
         /// <returns></returns>
         internal static string SerializeToJsonPayload(params macro[] macros)
         {
-            var serializer = new JavaScriptSerializer();
             var items = macros.Select(FromMacro).ToArray();
-            var json = serializer.Serialize(items);
+            var json = JsonConvert.SerializeObject(items);
             return json;
         }
 
@@ -176,7 +173,7 @@ namespace Umbraco.Web.Cache
                     prefix =>
                     ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheByKeySearch(prefix));
 
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheObjectTypes<IMacro>();
+            ClearAllIsolatedCacheByEntityType<IMacro>();
 
             base.RefreshAll();
         }
@@ -191,7 +188,11 @@ namespace Umbraco.Web.Cache
                     alias =>
                     ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheByKeySearch(alias));
 
-                ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheItem(RepositoryBase.GetCacheIdKey<IMacro>(payload.Id));
+                var macroRepoCache = ApplicationContext.Current.ApplicationCache.IsolatedRuntimeCache.GetCache<IMacro>();
+                if (macroRepoCache)
+                {
+                    macroRepoCache.Result.ClearCacheItem(RepositoryBase.GetCacheIdKey<IMacro>(payload.Id));
+                }
             });
 
             base.Refresh(jsonPayload);

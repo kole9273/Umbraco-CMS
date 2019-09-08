@@ -21,7 +21,12 @@ namespace Umbraco.Core.Models
         string Description { get; set; }
 
         /// <summary>
-        /// Gets or Sets the Icon for the ContentType
+        /// Gets or sets the icon for the content type. The value is a CSS class name representing
+        /// the icon (eg. <c>icon-home</c>) along with an optional CSS class name representing the
+        /// color (eg. <c>icon-blue</c>). Put together, the value for this scenario would be
+        /// <c>icon-home color-blue</c>.
+        /// 
+        /// If a class name for the color isn't specified, the icon color will default to black.
         /// </summary>
         string Icon { get; set; }
 
@@ -54,9 +59,14 @@ namespace Umbraco.Core.Models
         PropertyGroupCollection PropertyGroups { get; set; }
 
         /// <summary>
-        /// Gets an enumerable list of Property Types aggregated for all groups
+        /// Gets all property types, across all property groups.
         /// </summary>
         IEnumerable<PropertyType> PropertyTypes { get; }
+
+        /// <summary>
+        /// Gets or sets the property types that are not in a group.
+        /// </summary>
+        IEnumerable<PropertyType> NoGroupPropertyTypes { get; set; }
 
         /// <summary>
         /// Removes a PropertyType from the current ContentType

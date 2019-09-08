@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Web;
+using System.Web.Helpers;
 using System.Web.Mvc;
 using System.Web.Mvc.Html;
 using System.Web.Routing;
@@ -46,7 +48,7 @@ namespace Umbraco.Web
         public static MvcHtmlString AreaPartial(this HtmlHelper helper, string partial, string area, object model = null, ViewDataDictionary viewData = null)
         {
             var originalArea = helper.ViewContext.RouteData.DataTokens["area"];
-            helper.ViewContext.RouteData.DataTokens["area"] = area;	        
+            helper.ViewContext.RouteData.DataTokens["area"] = area;
             var result = helper.Partial(partial, model, viewData);
             helper.ViewContext.RouteData.DataTokens["area"] = originalArea;
             return result;
@@ -77,9 +79,9 @@ namespace Umbraco.Web
         }
 
 		public static IHtmlString CachedPartial(
-			this HtmlHelper htmlHelper, 
-			string partialViewName, 
-			object model, 
+			this HtmlHelper htmlHelper,
+			string partialViewName,
+			object model,
 			int cachedSeconds,
 			bool cacheByPage = false,
 			bool cacheByMember = false,
@@ -120,7 +122,7 @@ namespace Umbraco.Web
 		}
 
 		/// <summary>
-		/// A validation summary that lets you pass in a prefix so that the summary only displays for elements 
+		/// A validation summary that lets you pass in a prefix so that the summary only displays for elements
 		/// containing the prefix. This allows you to have more than on validation summary on a page.
 		/// </summary>
 		/// <param name="htmlHelper"></param>
@@ -140,7 +142,7 @@ namespace Umbraco.Web
 				return htmlHelper.ValidationSummary(excludePropertyErrors, message, htmlAttributes);
 			}
 
-			//if there's a prefix applied, we need to create a new html helper with a filtered ModelState collection so that it only looks for 
+			//if there's a prefix applied, we need to create a new html helper with a filtered ModelState collection so that it only looks for
 			//specific model state with the prefix.
 			var filteredHtmlHelper = new HtmlHelper(htmlHelper.ViewContext, htmlHelper.ViewDataContainer.FilterContainer(prefix));
 			return filteredHtmlHelper.ValidationSummary(excludePropertyErrors, message, htmlAttributes);
@@ -188,7 +190,7 @@ namespace Umbraco.Web
                 }
                 else
                 {
-                    routeVals.Add("area", metaData.AreaName);    
+                    routeVals.Add("area", metaData.AreaName);
                 }
             }
 
@@ -197,50 +199,22 @@ namespace Umbraco.Web
 
         #region GetCropUrl
 
-        /// <summary>
-        /// Gets the ImageProcessor Url of a media item by the crop alias (using default media item property alias of "umbracoFile")
-        /// </summary>
-        /// <param name="htmlHelper"></param>
-        /// <param name="mediaItem"></param>
-        /// <param name="cropAlias"></param>
-        /// <returns></returns>
+        [Obsolete("Use the UrlHelper.GetCropUrl extension instead")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static IHtmlString GetCropUrl(this HtmlHelper htmlHelper, IPublishedContent mediaItem, string cropAlias)
         {
             return new HtmlString(mediaItem.GetCropUrl(cropAlias: cropAlias, useCropDimensions: true));
         }
 
-        /// <summary>
-        /// Gets the ImageProcessor Url of a media item by the property alias and crop alias.
-        /// </summary>
-        /// <param name="htmlHelper"></param>
-        /// <param name="mediaItem"></param>
-        /// <param name="propertyAlias"></param>
-        /// <param name="cropAlias"></param>
-        /// <returns></returns>
+        [Obsolete("Use the UrlHelper.GetCropUrl extension instead")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static IHtmlString GetCropUrl(this HtmlHelper htmlHelper, IPublishedContent mediaItem, string propertyAlias, string cropAlias)
         {
             return new HtmlString(mediaItem.GetCropUrl(propertyAlias: propertyAlias, cropAlias: cropAlias, useCropDimensions: true));
         }
 
-        /// <summary>
-        /// Gets the ImageProcessor Url of a media item
-        /// </summary>
-        /// <param name="htmlHelper"></param>
-        /// <param name="mediaItem"></param>
-        /// <param name="width"></param>
-        /// <param name="height"></param>
-        /// <param name="propertyAlias"></param>
-        /// <param name="cropAlias"></param>
-        /// <param name="quality"></param>
-        /// <param name="imageCropMode"></param>
-        /// <param name="imageCropAnchor"></param>
-        /// <param name="preferFocalPoint"></param>
-        /// <param name="useCropDimensions"></param>
-        /// <param name="cacheBuster"></param>
-        /// <param name="furtherOptions"></param>
-        /// <param name="ratioMode"></param>
-        /// <param name="upScale"></param>
-        /// <returns></returns>
+        [Obsolete("Use the UrlHelper.GetCropUrl extension instead")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static IHtmlString GetCropUrl(this HtmlHelper htmlHelper,
             IPublishedContent mediaItem,
             int? width = null,
@@ -263,25 +237,8 @@ namespace Umbraco.Web
                     upScale));
         }
 
-        /// <summary>
-        /// Gets the ImageProcessor Url from the media path
-        /// </summary>
-        /// <param name="htmlHelper"></param>
-        /// <param name="imageUrl"></param>
-        /// <param name="width"></param>
-        /// <param name="height"></param>
-        /// <param name="imageCropperValue"></param>
-        /// <param name="cropAlias"></param>
-        /// <param name="quality"></param>
-        /// <param name="imageCropMode"></param>
-        /// <param name="imageCropAnchor"></param>
-        /// <param name="preferFocalPoint"></param>
-        /// <param name="useCropDimensions"></param>
-        /// <param name="cacheBusterValue"></param>
-        /// <param name="furtherOptions"></param>
-        /// <param name="ratioMode"></param>
-        /// <param name="upScale"></param>
-        /// <returns></returns>
+        [Obsolete("Use the UrlHelper.GetCropUrl extension instead")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static IHtmlString GetCropUrl(this HtmlHelper htmlHelper,
             string imageUrl,
             int? width = null,
@@ -333,19 +290,32 @@ namespace Umbraco.Web
 			{
 		        _viewContext = viewContext;
 		        _method = method;
+			    _controllerName = controllerName;
                 _encryptedString = UmbracoHelper.CreateEncryptedRouteString(controllerName, controllerAction, area, additionalRouteVals);
+
 			}
+
 
 		    private readonly ViewContext _viewContext;
 		    private readonly FormMethod _method;
 			private bool _disposed;
 			private readonly string _encryptedString;
+		    private readonly string _controllerName;
 
-			protected override void Dispose(bool disposing)
+            protected override void Dispose(bool disposing)
 			{
 				if (this._disposed)
 					return;
 				this._disposed = true;
+                //Detect if the call is targeting UmbRegisterController/UmbProfileController/UmbLoginStatusController/UmbLoginController and if it is we automatically output a AntiForgeryToken()
+                // We have a controllerName and area so we can match
+                if (_controllerName == "UmbRegister"
+                    || _controllerName == "UmbProfile"
+                    || _controllerName == "UmbLoginStatus"
+                    || _controllerName == "UmbLogin")
+			    {
+                    _viewContext.Writer.Write(AntiForgery.GetHtml().ToString());
+			    }
 
                 //write out the hidden surface form routes
                 _viewContext.Writer.Write("<input name='ufprt' type='hidden' value='" + _encryptedString + "' />");
@@ -821,7 +791,7 @@ namespace Umbraco.Web
 		/// <param name="htmlAttributes"></param>
 		/// <param name="surfaceController"></param>
 		/// <param name="surfaceAction"></param>
-		/// <param name="area"></param>		
+		/// <param name="area"></param>
 		/// <param name="additionalRouteVals"></param>
 		/// <returns></returns>
 		/// <remarks>
@@ -847,7 +817,7 @@ namespace Umbraco.Web
 			tagBuilder.MergeAttributes(htmlAttributes);
 			// action is implicitly generated, so htmlAttributes take precedence.
 			tagBuilder.MergeAttribute("action", formAction);
-			// method is an explicit parameter, so it takes precedence over the htmlAttributes. 
+			// method is an explicit parameter, so it takes precedence over the htmlAttributes.
 			tagBuilder.MergeAttribute("method", HtmlHelper.GetFormMethodString(method), true);
 			var traditionalJavascriptEnabled = htmlHelper.ViewContext.ClientValidationEnabled && htmlHelper.ViewContext.UnobtrusiveJavaScriptEnabled == false;
 			if (traditionalJavascriptEnabled)
@@ -857,8 +827,8 @@ namespace Umbraco.Web
 			}
 			htmlHelper.ViewContext.Writer.Write(tagBuilder.ToString(TagRenderMode.StartTag));
 
-			//new UmbracoForm:
-			var theForm = new UmbracoForm(htmlHelper.ViewContext, surfaceController, surfaceAction, area, method, additionalRouteVals);
+            //new UmbracoForm:
+            var theForm = new UmbracoForm(htmlHelper.ViewContext, surfaceController, surfaceAction, area, method, additionalRouteVals);
 
 			if (traditionalJavascriptEnabled)
 			{
@@ -868,7 +838,6 @@ namespace Umbraco.Web
 		}
 
 		#endregion
-
 
 		#region Wrap
 
@@ -928,14 +897,106 @@ namespace Umbraco.Web
 		{
 			var item = html.Wrap(tag, innerText, anonymousAttributes, children);
 			item.Visible = visible;
-			foreach (var child in children)
-			{
-				item.AddChild(child);
-			}
 			return item;
 		}
 
-		#endregion
+        #endregion
 
-	}
+        #region canvasdesigner
+
+        public static IHtmlString EnableCanvasDesigner(this HtmlHelper html,
+            UrlHelper url,
+            UmbracoContext umbCtx)
+        {
+            return html.EnableCanvasDesigner(url, umbCtx, string.Empty, string.Empty);
+        }
+
+        public static IHtmlString EnableCanvasDesigner(this HtmlHelper html,
+            UrlHelper url,
+            UmbracoContext umbCtx, string canvasdesignerConfigPath)
+        {
+            return html.EnableCanvasDesigner(url, umbCtx, canvasdesignerConfigPath, string.Empty);
+        }
+
+        public static IHtmlString EnableCanvasDesigner(this HtmlHelper html,
+            UrlHelper url,
+            UmbracoContext umbCtx, string canvasdesignerConfigPath, string canvasdesignerPalettesPath)
+        {
+
+            var umbracoPath = url.Content(SystemDirectories.Umbraco);
+
+            string previewLink = @"<script src=""{0}/lib/jquery/jquery.min.js"" type=""text/javascript""></script>" +
+                                 @"<script src=""{1}"" type=""text/javascript""></script>" +
+                                 @"<script src=""{2}"" type=""text/javascript""></script>" +
+                                 @"<script type=""text/javascript"">var pageId = '{3}'</script>" +
+                                 @"<script src=""{0}/js/canvasdesigner.front.js"" type=""text/javascript""></script>";
+
+            string noPreviewLinks = @"<link href=""{1}"" type=""text/css"" rel=""stylesheet"" data-title=""canvasdesignerCss"" />";
+
+            // Get page value
+            int pageId = umbCtx.PublishedContentRequest.UmbracoPage.PageID;
+            string[] path = umbCtx.PublishedContentRequest.UmbracoPage.SplitPath;
+            string result = string.Empty;
+            string cssPath = CanvasDesignerUtility.GetStylesheetPath(path, false);
+
+            if (umbCtx.InPreviewMode)
+            {
+                canvasdesignerConfigPath = string.IsNullOrEmpty(canvasdesignerConfigPath) == false
+                    ? canvasdesignerConfigPath
+                    : string.Format("{0}/js/canvasdesigner.config.js", umbracoPath);
+                canvasdesignerPalettesPath = string.IsNullOrEmpty(canvasdesignerPalettesPath) == false
+                    ? canvasdesignerPalettesPath
+                    : string.Format("{0}/js/canvasdesigner.palettes.js", umbracoPath);
+
+                if (string.IsNullOrEmpty(cssPath) == false)
+                    result = string.Format(noPreviewLinks, cssPath) + Environment.NewLine;
+
+                result = result + string.Format(previewLink, umbracoPath, canvasdesignerConfigPath, canvasdesignerPalettesPath, pageId);
+            }
+            else
+            {
+                // Get css path for current page
+                if (string.IsNullOrEmpty(cssPath) == false)
+                    result = string.Format(noPreviewLinks, cssPath);
+            }
+
+            return new HtmlString(result);
+
+        }
+
+        #endregion
+
+        #region RelatedLink
+
+        /// <summary>
+        /// Renders an anchor element for a RelatedLink instance.
+        /// Format: &lt;a href=&quot;relatedLink.Link&quot; target=&quot;_blank/_self&quot;&gt;relatedLink.Caption&lt;/a&gt;
+        /// </summary>
+        /// <param name="htmlHelper">The HTML helper instance that this method extends.</param>
+        /// <param name="relatedLink">The RelatedLink instance</param>
+        /// <returns>An anchor element </returns>
+        public static MvcHtmlString GetRelatedLinkHtml(this HtmlHelper htmlHelper, RelatedLink relatedLink)
+        {
+            return htmlHelper.GetRelatedLinkHtml(relatedLink, null);
+        }
+
+        /// <summary>
+        /// Renders an anchor element for a RelatedLink instance, accepting htmlAttributes.
+        /// Format: &lt;a href=&quot;relatedLink.Link&quot; target=&quot;_blank/_self&quot; htmlAttributes&gt;relatedLink.Caption&lt;/a&gt;
+        /// </summary>
+        /// <param name="htmlHelper">The HTML helper instance that this method extends.</param>
+        /// <param name="relatedLink">The RelatedLink instance</param>
+        /// <param name="htmlAttributes">An object that contains the HTML attributes to set for the element.</param>
+        /// <returns></returns>
+        public static MvcHtmlString GetRelatedLinkHtml(this HtmlHelper htmlHelper, RelatedLink relatedLink, object htmlAttributes)
+        {
+            var tagBuilder = new TagBuilder("a");
+            tagBuilder.MergeAttributes(HtmlHelper.AnonymousObjectToHtmlAttributes(htmlAttributes));
+            tagBuilder.MergeAttribute("href", relatedLink.Link);
+            tagBuilder.MergeAttribute("target", relatedLink.NewWindow ? "_blank" : "_self");
+            tagBuilder.InnerHtml = HttpUtility.HtmlEncode(relatedLink.Caption);
+            return MvcHtmlString.Create(tagBuilder.ToString(TagRenderMode.Normal));
+        }
+        #endregion
+    }
 }

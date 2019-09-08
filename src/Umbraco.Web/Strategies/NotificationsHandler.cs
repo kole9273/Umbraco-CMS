@@ -9,6 +9,7 @@ using Umbraco.Core.Models.EntityBase;
 using Umbraco.Core.Services;
 using umbraco;
 using umbraco.BusinessLogic.Actions;
+using Umbraco.Core.Models;
 
 namespace Umbraco.Web.Strategies
 {
@@ -36,6 +37,9 @@ namespace Umbraco.Web.Strategies
             //Send notifications for the update and created actions
             ContentService.Saved += (sender, args) =>
                 {
+                    var newEntities = new List<IContent>();
+                    var updatedEntities =  new List<IContent>();
+
                     //need to determine if this is updating or if it is new
                     foreach (var entity in args.SavedEntities)
                     {
@@ -43,24 +47,22 @@ namespace Umbraco.Web.Strategies
                         if (dirty.WasPropertyDirty("Id"))
                         {
                             //it's new
-                            applicationContext.Services.NotificationService.SendNotification(
-                                entity, ActionNew.Instance, applicationContext);
+                            newEntities.Add(entity);
                         }
                         else
                         {
                             //it's updating
-                            applicationContext.Services.NotificationService.SendNotification(
-                                entity, ActionUpdate.Instance, applicationContext);
+                            updatedEntities.Add(entity);
                         }
                     }
+                    applicationContext.Services.NotificationService.SendNotification(newEntities, ActionNew.Instance, applicationContext);
+                    applicationContext.Services.NotificationService.SendNotification(updatedEntities, ActionUpdate.Instance, applicationContext);
                 };
 
-            //Send notifications for the delete action
-            ContentService.Deleted += (sender, args) =>
-                                      args.DeletedEntities.ForEach(
-                                          content =>
-                                          applicationContext.Services.NotificationService.SendNotification(
-                                              content, ActionDelete.Instance, applicationContext));
+            //Send notifications for the delete (send to recycle bin) action
+            ContentService.Trashed += (sender, args) => applicationContext.Services.NotificationService.SendNotification(
+                                                            args.MoveInfoCollection.Select(mi => mi.Entity), ActionDelete.Instance, applicationContext
+                                                        );
            
             //Send notifications for the unpublish action
             ContentService.UnPublished += (sender, args) =>
@@ -68,8 +70,47 @@ namespace Umbraco.Web.Strategies
                                               content =>
                                               applicationContext.Services.NotificationService.SendNotification(
                                                   content, ActionUnPublish.Instance, applicationContext));
+												  
+            //Send notifications for the rollback action
+            ContentService.RolledBack += (sender, args) => applicationContext.Services.NotificationService.SendNotification(
+                                                               args.Entity, ActionRollback.Instance, applicationContext);
 
+            //Send notifications for the move and restore actions
+            ContentService.Moved += (sender, args) =>
+            {
+                // notify about the move for all moved items
+                foreach(var moveInfo in args.MoveInfoCollection)
+                {
+                    applicationContext.Services.NotificationService.SendNotification(
+                        moveInfo.Entity, ActionMove.Instance, applicationContext
+                    );
+                }
+
+                // for any items being moved from the recycle bin (restored), explicitly notify about that too
+                foreach(var moveInfo in args.MoveInfoCollection.Where(m => m.OriginalPath.Contains(Constants.System.RecycleBinContentString)))
+                {
+                    applicationContext.Services.NotificationService.SendNotification(
+                        moveInfo.Entity, ActionRestore.Instance, applicationContext
+                    );
+                }
+            };
+			
+            //Send notifications for the copy action
+            ContentService.Copied += (sender, args) => applicationContext.Services.NotificationService.SendNotification(
+                args.Original, ActionCopy.Instance, applicationContext);
+
+            //Send notifications for the permissions action
+            UserService.UserGroupPermissionsAssigned += (sender, args) =>
+            {
+                var entities = applicationContext.Services.ContentService.GetByIds(args.SavedEntities.Select(e => e.EntityId));
+
+                foreach(var entity in entities)
+                {
+                    applicationContext.Services.NotificationService.SendNotification(
+                        entity, ActionRights.Instance, applicationContext
+                    );
+                }
+            };
         }
-
     }
 }

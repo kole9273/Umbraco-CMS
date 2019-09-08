@@ -1,6 +1,5 @@
 using System;
-using System.Diagnostics;
-using Umbraco.Core.Persistence.Mappers;
+using System.ComponentModel;
 
 namespace Umbraco.Core.Models
 {
@@ -21,6 +20,7 @@ namespace Umbraco.Core.Models
         bool Published { get; }
 
         [Obsolete("This will be removed in future versions")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         string Language { get; set; }
 
         /// <summary>
@@ -83,5 +83,10 @@ namespace Umbraco.Core.Models
         /// Gets the unique identifier of the published version, if any.
         /// </summary>
         Guid PublishedVersionGuid { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the content item is a blueprint.
+        /// </summary>
+        bool IsBlueprint { get; }
     }
 }

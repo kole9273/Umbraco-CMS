@@ -6,32 +6,60 @@ using Umbraco.Core.Persistence.DatabaseModelDefinitions;
 namespace Umbraco.Core.Persistence.SqlSyntax
 {
     /// <summary>
-    /// Represents an SqlSyntaxProvider for Sql Server
+    /// Represents an SqlSyntaxProvider for Sql Server.
     /// </summary>
-    [SqlSyntaxProviderAttribute("System.Data.SqlClient")]
+    [SqlSyntaxProvider(Constants.DatabaseProviders.SqlServer)]
     public class SqlServerSyntaxProvider : MicrosoftSqlSyntaxProviderBase<SqlServerSyntaxProvider>
     {
-        public SqlServerSyntaxProvider()
-        {
-            StringLengthColumnDefinitionFormat = StringLengthUnicodeColumnDefinitionFormat;
-            StringColumnDefinition = string.Format(StringLengthColumnDefinitionFormat, DefaultStringLength);
-
-            AutoIncrementDefinition = "IDENTITY(1,1)";
-            StringColumnDefinition = "VARCHAR(8000)";
-            GuidColumnDefinition = "UniqueIdentifier";
-            RealColumnDefinition = "FLOAT";
-            BoolColumnDefinition = "BIT";
-            DecimalColumnDefinition = "DECIMAL(38,6)";
-            TimeColumnDefinition = "TIME"; //SQLSERVER 2008+
-            BlobColumnDefinition = "VARBINARY(MAX)";
-
-            InitColumnTypeMap();
-        }
-
         /// <summary>
         /// Gets/sets the version of the current SQL server instance
         /// </summary>
-        internal Lazy<SqlServerVersionName> VersionName { get; set; }
+        internal SqlServerVersionName GetVersionName(Database database)
+        {
+            if (_versionName.HasValue)
+                return _versionName.Value;
+
+            try
+            {
+                var version = database.ExecuteScalar<string>("SELECT SERVERPROPERTY('productversion')");
+                var firstPart = version.Split('.')[0];
+                switch (firstPart)
+                {
+                    case "13":
+                        _versionName = SqlServerVersionName.V2016;
+                        break;
+                    case "12":
+                        _versionName = SqlServerVersionName.V2014;
+                        break;
+                    case "11":
+                        _versionName = SqlServerVersionName.V2012;
+                        break;
+                    case "10":
+                        _versionName = SqlServerVersionName.V2008;
+                        break;
+                    case "9":
+                        _versionName = SqlServerVersionName.V2005;
+                        break;
+                    case "8":
+                        _versionName = SqlServerVersionName.V2000;
+                        break;
+                    case "7":
+                        _versionName = SqlServerVersionName.V7;
+                        break;
+                    default:
+                        _versionName = SqlServerVersionName.Other;
+                        break;
+                }
+            }
+            catch (Exception)
+            {
+                _versionName = SqlServerVersionName.Invalid;
+            }
+
+            return _versionName.Value;
+        }
+
+        private SqlServerVersionName? _versionName;
 
         /// <summary>
         /// SQL Server stores default values assigned to columns as constraints, it also stores them with named values, this is the only
@@ -40,19 +68,19 @@ namespace Umbraco.Core.Persistence.SqlSyntax
         /// <returns></returns>
         public IEnumerable<Tuple<string, string, string, string>> GetDefaultConstraintsPerColumn(Database db)
         {
-            var items = db.Fetch<dynamic>("SELECT TableName = t.Name,ColumnName = c.Name,dc.Name,dc.[Definition] FROM sys.tables t INNER JOIN sys.default_constraints dc ON t.object_id = dc.parent_object_id INNER JOIN sys.columns c ON dc.parent_object_id = c.object_id AND c.column_id = dc.parent_column_id");
+            var items = db.Fetch<dynamic>("SELECT TableName = t.Name, ColumnName = c.Name, dc.Name, dc.[Definition] FROM sys.tables t INNER JOIN sys.default_constraints dc ON t.object_id = dc.parent_object_id INNER JOIN sys.columns c ON dc.parent_object_id = c.object_id AND c.column_id = dc.parent_column_id INNER JOIN sys.schemas as s on t.[schema_id] = s.[schema_id] WHERE s.name = (SELECT SCHEMA_NAME())");
             return items.Select(x => new Tuple<string, string, string, string>(x.TableName, x.ColumnName, x.Name, x.Definition));
-        } 
+        }
 
         public override IEnumerable<string> GetTablesInSchema(Database db)
         {
-            var items = db.Fetch<dynamic>("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES");
+            var items = db.Fetch<dynamic>("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = (SELECT SCHEMA_NAME())");
             return items.Select(x => x.TABLE_NAME).Cast<string>().ToList();
         }
 
         public override IEnumerable<ColumnInfo> GetColumnsInSchema(Database db)
         {
-            var items = db.Fetch<dynamic>("SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS");
+            var items = db.Fetch<dynamic>("SELECT TABLE_NAME, COLUMN_NAME, ORDINAL_POSITION, COLUMN_DEFAULT, IS_NULLABLE, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = (SELECT SCHEMA_NAME())");
             return
                 items.Select(
                     item =>
@@ -60,22 +88,25 @@ namespace Umbraco.Core.Persistence.SqlSyntax
                                    item.IS_NULLABLE, item.DATA_TYPE)).ToList();
         }
 
+        /// <inheritdoc />
         public override IEnumerable<Tuple<string, string>> GetConstraintsPerTable(Database db)
         {
             var items =
                 db.Fetch<dynamic>(
-                    "SELECT TABLE_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.CONSTRAINT_TABLE_USAGE");
+                    "SELECT TABLE_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.CONSTRAINT_TABLE_USAGE WHERE TABLE_SCHEMA = (SELECT SCHEMA_NAME())");
             return items.Select(item => new Tuple<string, string>(item.TABLE_NAME, item.CONSTRAINT_NAME)).ToList();
         }
 
+        /// <inheritdoc />
         public override IEnumerable<Tuple<string, string, string>> GetConstraintsPerColumn(Database db)
         {
             var items =
                 db.Fetch<dynamic>(
-                    "SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE");
+                    "SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE WHERE TABLE_SCHEMA = (SELECT SCHEMA_NAME())");
             return items.Select(item => new Tuple<string, string, string>(item.TABLE_NAME, item.COLUMN_NAME, item.CONSTRAINT_NAME)).ToList();
         }
 
+        /// <inheritdoc />
         public override IEnumerable<Tuple<string, string, string, bool>> GetDefinedIndexes(Database db)
         {
             var items =
@@ -85,17 +116,18 @@ CASE WHEN I.is_unique_constraint = 1 OR  I.is_unique = 1 THEN 1 ELSE 0 END AS [U
 from sys.tables as T inner join sys.indexes as I on T.[object_id] = I.[object_id] 
    inner join sys.index_columns as IC on IC.[object_id] = I.[object_id] and IC.[index_id] = I.[index_id] 
    inner join sys.all_columns as AC on IC.[object_id] = AC.[object_id] and IC.[column_id] = AC.[column_id] 
-WHERE I.name NOT LIKE 'PK_%'
+   inner join sys.schemas as S on T.[schema_id] = S.[schema_id]
+WHERE S.name = (SELECT SCHEMA_NAME()) AND I.is_primary_key = 0
 order by T.name, I.name");
-            return items.Select(item => new Tuple<string, string, string, bool>(item.TABLE_NAME, item.INDEX_NAME, item.COLUMN_NAME, 
+            return items.Select(item => new Tuple<string, string, string, bool>(item.TABLE_NAME, item.INDEX_NAME, item.COLUMN_NAME,
                 item.UNIQUE == 1)).ToList();
-            
+
         }
 
         public override bool DoesTableExist(Database db, string tableName)
         {
             var result =
-                db.ExecuteScalar<long>("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = @TableName",
+                db.ExecuteScalar<long>("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = @TableName AND TABLE_SCHEMA = (SELECT SCHEMA_NAME())",
                                        new { TableName = tableName });
 
             return result > 0;
@@ -116,6 +148,11 @@ order by T.name, I.name");
             return column.IsIdentity ? GetIdentityString(column) : string.Empty;
         }
 
+        public override Sql SelectTop(Sql sql, int top)
+        {
+            return new Sql(sql.SQL.Insert(sql.SQL.IndexOf(' '), " TOP " + top), sql.Arguments);
+        }
+
         private static string GetIdentityString(ColumnDefinition column)
         {
             return "IDENTITY(1,1)";
@@ -126,7 +163,7 @@ order by T.name, I.name");
             switch (systemMethod)
             {
                 case SystemMethods.NewGuid:
-                    return "NEWID()";                
+                    return "NEWID()";
                 case SystemMethods.CurrentDateTime:
                     return "GETDATE()";
                 //case SystemMethods.NewSequentialId:
@@ -143,11 +180,9 @@ order by T.name, I.name");
             get { return "ALTER TABLE [{0}] DROP CONSTRAINT [DF_{0}_{1}]"; }
         }
 
-        
+
         public override string DropIndex { get { return "DROP INDEX {0} ON {1}"; } }
 
         public override string RenameColumn { get { return "sp_rename '{0}.{1}', '{2}', 'COLUMN'"; } }
-
-        
     }
 }

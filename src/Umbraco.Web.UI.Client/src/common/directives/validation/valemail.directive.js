@@ -29,7 +29,16 @@ function valEmail(valEmailExpression) {
                 }
             };
 
-            ctrl.$formatters.push(patternValidator);
+            //if there is an attribute: type="email" then we need to remove those formatters and parsers
+            if (attrs.type === "email") {
+                //we need to remove the existing parsers = the default angular one which is created by
+                // type="email", but this has a regex issue, so we'll remove that and add our custom one
+                ctrl.$parsers.pop();
+                //we also need to remove the existing formatter - the default angular one will not render
+                // what it thinks is an invalid email address, so it will just be blank
+                ctrl.$formatters.pop();
+            }
+            
             ctrl.$parsers.push(patternValidator);
         }
     };
@@ -37,8 +46,9 @@ function valEmail(valEmailExpression) {
 
 angular.module('umbraco.directives.validation')
     .directive("valEmail", valEmail)
-    .factory('valEmailExpression', function() {
+    .factory('valEmailExpression', function () {
+        var emailRegex = /^[a-z0-9!#$%&'*+\/=?^_`{|}~.-]+@[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
         return {
-            EMAIL_REGEXP: /^[a-z0-9!#$%&'*+\/=?^_`{|}~.-]+@[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i
+            EMAIL_REGEXP: emailRegex
         };
     });

@@ -36,19 +36,7 @@ namespace umbraco.presentation.webservices
     public class legacyAjaxCalls : UmbracoAuthorizedWebService
     {
         private User _currentUser;
-
-        [WebMethod]
-        public bool ValidateUser(string username, string password)
-        {
-            if (ValidateCredentials(username, password))
-            {
-                var u = new BusinessLogic.User(username);
-                BasePage.doLogin(u);
-                return true;
-            }
-            return false;
-        }
-
+       
         /// <summary>
         /// method to accept a string value for the node id. Used for tree's such as python
         /// and xslt since the file names are the node IDs
@@ -68,7 +56,7 @@ namespace umbraco.presentation.webservices
 
             //check which parameters to pass depending on the types passed in
             int intNodeId;
-            if (nodeType == "memberGroup")
+            if (nodeType == "memberGroups")
             {
                  LegacyDialogHandler.Delete(
                     new HttpContextWrapper(HttpContext.Current),

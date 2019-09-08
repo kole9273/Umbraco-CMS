@@ -1,10 +1,15 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http.Formatting;
+using System.Threading;
+using System.Web.Security;
 using Umbraco.Core;
+using Umbraco.Core.Models;
 using Umbraco.Web.Models.Trees;
 using Umbraco.Web.Mvc;
+using Umbraco.Core.Services;
 
 namespace Umbraco.Web.Trees
 {
@@ -13,31 +18,29 @@ namespace Umbraco.Web.Trees
     /// </summary>
     public abstract class TreeController : TreeControllerBase
     {
-        private readonly TreeAttribute _attribute;
+        private TreeAttribute _attribute;
 
         protected TreeController()
         {
-            //Locate the tree attribute
-            var treeAttributes = GetType()
-                .GetCustomAttributes(typeof(TreeAttribute), false)
-                .OfType<TreeAttribute>()
-                .ToArray();
-
-            if (treeAttributes.Any() == false)
-            {
-                throw new InvalidOperationException("The Tree controller is missing the " + typeof(TreeAttribute).FullName + " attribute");
-            }
-
-            //assign the properties of this object to those of the metadata attribute
-            _attribute = treeAttributes.First();
+            Initialize();
         }
+
+        protected TreeController(UmbracoContext umbracoContext) : base(umbracoContext)
+        {
+            Initialize();
+        }
+
+        protected TreeController(UmbracoContext umbracoContext, UmbracoHelper umbracoHelper) : base(umbracoContext, umbracoHelper)
+        {
+            Initialize();
+        }        
 
         /// <summary>
         /// The name to display on the root node
         /// </summary>
         public override string RootNodeDisplayName
         {
-            get { return _attribute.Title; }
+            get { return _attribute.GetRootNodeDisplayName(Services.TextService); }
         }
 
         /// <summary>
@@ -48,5 +51,9 @@ namespace Umbraco.Web.Trees
             get { return _attribute.Alias; }
         }
 
+        private void Initialize()
+        {
+            _attribute = GetType().GetTreeAttribute();
+        }
     }
 }

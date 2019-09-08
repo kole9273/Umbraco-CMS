@@ -24,18 +24,12 @@ namespace Umbraco.Web.Cache
 
         public override string Name
         {
-            get
-            {
-                return "Template cache refresher";
-            }
+            get { return "Template cache refresher"; }
         }
 
         public override Guid UniqueIdentifier
         {
-            get
-            {
-                return new Guid(DistributedCache.TemplateRefresherId);
-            }
+            get { return DistributedCache.TemplateRefresherGuid; }
         }
 
         public override void Refresh(int id)
@@ -52,21 +46,20 @@ namespace Umbraco.Web.Cache
             // all three of these types are referenced by templates, and the cache needs to be cleared on every server,
             // otherwise things like looking up content type's after a template is removed is still going to show that
             // it has an associated template.
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheObjectTypes<IContent>();
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheObjectTypes<IContentType>();
+            ClearAllIsolatedCacheByEntityType<IContent>();
+            ClearAllIsolatedCacheByEntityType<IContentType>();
 
             base.Remove(id);
         }
 
         private void RemoveFromCache(int id)
         {
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheByKeySearch(CacheKeys.IdToKeyCacheKey);
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheByKeySearch(CacheKeys.KeyToIdCacheKey);
+            ApplicationContext.Current.Services.IdkMap.ClearCache(id);
             ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheItem(
                 string.Format("{0}{1}", CacheKeys.TemplateFrontEndCacheKey, id));
 
             //need to clear the runtime cache for templates
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheObjectTypes<ITemplate>();
+            ClearAllIsolatedCacheByEntityType<ITemplate>();
         }
 
     }

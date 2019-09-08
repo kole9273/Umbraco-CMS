@@ -12,7 +12,12 @@ angular.module('umbraco')
 	        $scope.model.value = {
 	            type: "content"
 	        };
-	    }
+        }
+        if (!$scope.model.config) {
+            $scope.model.config = {
+                idType: "int"
+            };
+        }
 
 		if($scope.model.value.id && $scope.model.value.type !== "member"){
 			var ent = "Document";
@@ -28,11 +33,20 @@ angular.module('umbraco')
 
 
 		$scope.openContentPicker =function(){
-			var d = dialogService.treePicker({
-								section: $scope.model.value.type,
-								treeAlias: $scope.model.value.type,
-								multiPicker: false,
-								callback: populate});
+			$scope.treePickerOverlay = {
+                view: "treepicker",
+                idType: $scope.model.config.idType,
+				section: $scope.model.value.type,
+				treeAlias: $scope.model.value.type,
+				multiPicker: false,
+				show: true,
+				submit: function(model) {
+					var item = model.selection[0];
+					populate(item);
+					$scope.treePickerOverlay.show = false;
+					$scope.treePickerOverlay = null;
+				}
+			};
 		};
 
 		$scope.clear = function() {
@@ -59,6 +73,6 @@ angular.module('umbraco')
 				$scope.clear();
 				item.icon = iconHelper.convertFromLegacyIcon(item.icon);
 				$scope.node = item;
-				$scope.model.value.id = item.id;
+                $scope.model.value.id = $scope.model.config.idType === "udi" ? item.udi : item.id;
 		}
 });

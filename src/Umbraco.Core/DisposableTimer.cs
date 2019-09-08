@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Web;
@@ -10,8 +11,14 @@ namespace Umbraco.Core
 	/// <summary>
 	/// Starts the timer and invokes a  callback upon disposal. Provides a simple way of timing an operation by wrapping it in a <code>using</code> (C#) statement.
 	/// </summary>
-	public class DisposableTimer : DisposableObject
-	{
+	public class DisposableTimer : DisposableObjectSlim
+    {
+	    private readonly ILogger _logger;
+	    private readonly LogType? _logType;
+	    private readonly IProfiler _profiler;
+	    private readonly Type _loggerType;
+	    private readonly string _endMessage;
+	    private readonly IDisposable _profilerStep;
 	    private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
 		private readonly Action<long> _callback;
 
@@ -25,25 +32,12 @@ namespace Umbraco.Core
             if (logger == null) throw new ArgumentNullException("logger");
             if (loggerType == null) throw new ArgumentNullException("loggerType");
 
-            _callback = x =>
-            {
-                if (profiler != null)
-                {
-                    profiler.DisposeIfDisposable();
-                }
-                switch (logType)
-                {
-                    case LogType.Debug:
-                        logger.Debug(loggerType, () => endMessage + " (took " + x + "ms)");
-                        break;
-                    case LogType.Info:
-                        logger.Info(loggerType, () => endMessage + " (took " + x + "ms)");
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException("logType");
-                }
-                
-            };
+            _logger = logger;
+            _logType = logType;
+            _profiler = profiler;
+            _loggerType = loggerType;
+            _endMessage = endMessage;
+            
             switch (logType)
             {
                 case LogType.Debug:
@@ -58,7 +52,7 @@ namespace Umbraco.Core
             
             if (profiler != null)
             {
-                profiler.Step(loggerType, startMessage);    
+                _profilerStep = profiler.Step(loggerType, startMessage);
             }
         }
 
@@ -215,15 +209,44 @@ namespace Umbraco.Core
                 loggerType,
                 startMessage(),
                 completeMessage());
-        } 
+        }
         #endregion
 
-		/// <summary>
-		/// Handles the disposal of resources. Derived from abstract class <see cref="DisposableObject"/> which handles common required locking logic.
-		/// </summary>
-		protected override void DisposeResources()
+        /// <summary>
+        /// Handles the disposal of resources. Derived from abstract class <see cref="DisposableObjectSlim"/> which handles common required locking logic.
+        /// </summary>
+        protected override void DisposeResources()
 		{
-			_callback.Invoke(Stopwatch.ElapsedMilliseconds);
+            if (_profiler != null)
+            {
+                _profiler.DisposeIfDisposable();
+            }
+
+		    if (_profilerStep != null)
+		    {
+                _profilerStep.Dispose();
+            }
+
+		    if (_logType.HasValue && _endMessage.IsNullOrWhiteSpace() == false && _loggerType != null && _logger != null)
+		    {
+                switch (_logType)
+                {
+                    case LogType.Debug:
+                        _logger.Debug(_loggerType, () => _endMessage + " (took " + Stopwatch.ElapsedMilliseconds + "ms)");
+                        break;
+                    case LogType.Info:
+                        _logger.Info(_loggerType, () => _endMessage + " (took " + Stopwatch.ElapsedMilliseconds + "ms)");
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException("logType");
+                }
+            }
+
+		    if (_callback != null)
+		    {
+                _callback.Invoke(Stopwatch.ElapsedMilliseconds);
+            }
+            
 		}
 
 	}

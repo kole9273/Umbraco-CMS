@@ -2,9 +2,7 @@
 using Umbraco.Core;
 using Umbraco.Core.Cache;
 using Umbraco.Core.Models.Membership;
-
 using Umbraco.Core.Persistence.Repositories;
-using umbraco.interfaces;
 
 namespace Umbraco.Web.Cache
 {
@@ -30,9 +28,7 @@ namespace Umbraco.Web.Cache
 
         public override void RefreshAll()
         {
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheObjectTypes<IUser>();
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheByKeySearch(CacheKeys.UserPermissionsCacheKey);
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheByKeySearch(CacheKeys.UserContextCacheKey);
+            ClearAllIsolatedCacheByEntityType<IUser>();
             base.RefreshAll();
         }
 
@@ -44,16 +40,11 @@ namespace Umbraco.Web.Cache
 
         public override void Remove(int id)
         {
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheItem(RepositoryBase.GetCacheIdKey<IUser>(id));
-
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheItem(string.Format("{0}{1}", CacheKeys.UserPermissionsCacheKey, id));
-
-            //we need to clear all UserContextCacheKey since we cannot invalidate based on ID since the cache is done so based
-            //on the current contextId stored in the database
-            ApplicationContext.Current.ApplicationCache.RuntimeCache.ClearCacheByKeySearch(CacheKeys.UserContextCacheKey);
-
+            var userCache = ApplicationContext.Current.ApplicationCache.IsolatedRuntimeCache.GetCache<IUser>();
+            if (userCache)
+                userCache.Result.ClearCacheItem(RepositoryBase.GetCacheIdKey<IUser>(id));
+           
             base.Remove(id);
         }
-
     }
 }

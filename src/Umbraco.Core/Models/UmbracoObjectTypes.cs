@@ -1,4 +1,6 @@
-﻿using Umbraco.Core.CodeAnnotations;
+﻿using System;
+using System.ComponentModel;
+using Umbraco.Core.CodeAnnotations;
 
 namespace Umbraco.Core.Models
 {
@@ -15,100 +17,190 @@ namespace Umbraco.Core.Models
         /// <summary>
         /// Content Item Type
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.ContentItemType)]
+        [UmbracoObjectType(Constants.ObjectTypes.ContentItemType)]
         [FriendlyName("Content Item Type")]
+        [Obsolete("This is not used and will be removed in future versions")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         ContentItemType,
 
         /// <summary>
         /// Root
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.SystemRoot)]
+        [UmbracoObjectType(Constants.ObjectTypes.SystemRoot)]        
         [FriendlyName("Root")]
         ROOT,
 
         /// <summary>
         /// Document
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.Document, typeof(IContent))]
+        [UmbracoObjectType(Constants.ObjectTypes.Document, typeof(IContent))]
         [FriendlyName("Document")]
+        [UmbracoUdiType(Constants.UdiEntityType.Document)]
         Document,
 
         /// <summary>
         /// Media
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.Media, typeof(IMedia))]
+        [UmbracoObjectType(Constants.ObjectTypes.Media, typeof(IMedia))]
         [FriendlyName("Media")]
+        [UmbracoUdiType(Constants.UdiEntityType.Media)]
         Media,
 
         /// <summary>
         /// Member Type
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.MemberType, typeof(IMemberType))]
+        [UmbracoObjectType(Constants.ObjectTypes.MemberType, typeof(IMemberType))]
         [FriendlyName("Member Type")]
+        [UmbracoUdiType(Constants.UdiEntityType.MemberType)]
         MemberType,
 
         /// <summary>
         /// Template
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.Template, typeof(ITemplate))]
+        [UmbracoObjectType(Constants.ObjectTypes.Template, typeof(ITemplate))]
         [FriendlyName("Template")]
+        [UmbracoUdiType(Constants.UdiEntityType.Template)]
         Template,
 
         /// <summary>
         /// Member Group
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.MemberGroup)]
+        [UmbracoObjectType(Constants.ObjectTypes.MemberGroup)]
         [FriendlyName("Member Group")]
+        [UmbracoUdiType(Constants.UdiEntityType.MemberGroup)]
         MemberGroup,
 
         //TODO: What is a 'Content Item' supposed to be???
         /// <summary>
         /// Content Item
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.ContentItem)]
+        [UmbracoObjectType(Constants.ObjectTypes.ContentItem)]
         [FriendlyName("Content Item")]
+        [Obsolete("This is not used and will be removed in future versions")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         ContentItem,
 
         /// <summary>
         /// "Media Type
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.MediaType, typeof(IMediaType))]
+        [UmbracoObjectType(Constants.ObjectTypes.MediaType, typeof(IMediaType))]
         [FriendlyName("Media Type")]
+        [UmbracoUdiType(Constants.UdiEntityType.MediaType)]
         MediaType,
 
         /// <summary>
         /// Document Type
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.DocumentType, typeof(IContentType))]
+        [UmbracoObjectType(Constants.ObjectTypes.DocumentType, typeof(IContentType))]
         [FriendlyName("Document Type")]
+        [UmbracoUdiType(Constants.UdiEntityType.DocumentType)]
         DocumentType,
 
         /// <summary>
         /// Recycle Bin
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.ContentRecycleBin)]
-        [FriendlyName("Recycle Bin")]
+        [UmbracoObjectType(Constants.ObjectTypes.ContentRecycleBin)]
+        [FriendlyName("Recycle Bin")]        
         RecycleBin,
 
         /// <summary>
         /// Stylesheet
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.Stylesheet)]
+        [UmbracoObjectType(Constants.ObjectTypes.Stylesheet)]
         [FriendlyName("Stylesheet")]
+        [UmbracoUdiType(Constants.UdiEntityType.Stylesheet)]
         Stylesheet,
 
         /// <summary>
         /// Member
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.Member, typeof(IMember))]
+        [UmbracoObjectType(Constants.ObjectTypes.Member, typeof(IMember))]
         [FriendlyName("Member")]
+        [UmbracoUdiType(Constants.UdiEntityType.Member)]
         Member,
 
         /// <summary>
         /// Data Type
         /// </summary>
-        [UmbracoObjectTypeAttribute(Constants.ObjectTypes.DataType, typeof(IDataTypeDefinition))]
+        [UmbracoObjectType(Constants.ObjectTypes.DataType, typeof(IDataTypeDefinition))]
         [FriendlyName("Data Type")]
-        DataType
+        [UmbracoUdiType(Constants.UdiEntityType.DataType)]
+        DataType,
+
+        /// <summary>
+        /// Document type container
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.DocumentTypeContainer)]
+        [FriendlyName("Document Type Container")]
+        [UmbracoUdiType(Constants.UdiEntityType.DocumentTypeContainer)]
+        DocumentTypeContainer,
+
+        /// <summary>
+        /// Media type container
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.MediaTypeContainer)]
+        [FriendlyName("Media Type Container")]
+        [UmbracoUdiType(Constants.UdiEntityType.MediaTypeContainer)]
+        MediaTypeContainer,
+
+        /// <summary>
+        /// Media type container
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.DataTypeContainer)]
+        [FriendlyName("Data Type Container")]
+        [UmbracoUdiType(Constants.UdiEntityType.DataTypeContainer)]
+        DataTypeContainer,
+
+        /// <summary>
+        /// Relation type
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.RelationType)]
+        [FriendlyName("Relation Type")]
+        [UmbracoUdiType(Constants.UdiEntityType.RelationType)]
+        RelationType,
+
+        /// <summary>
+        /// Forms Form
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.FormsForm)]
+        [FriendlyName("Form")]
+        FormsForm,
+
+        /// <summary>
+        /// Forms PreValue
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.FormsPreValue)]
+        [FriendlyName("PreValue")]
+        FormsPreValue,
+
+        /// <summary>
+        /// Forms DataSource
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.FormsDataSource)]
+        [FriendlyName("DataSource")]
+        FormsDataSource,
+
+        /// <summary>
+        /// Language
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.Language)]
+        [FriendlyName("Language")]
+        Language,
+
+        /// <summary>
+        /// Document Blueprint
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.DocumentBlueprint, typeof(IContent))]
+        [FriendlyName("DocumentBlueprint")]
+        [UmbracoUdiType(Constants.UdiEntityType.DocumentBlueprint)]
+        DocumentBlueprint,
+        
+        /// <summary>
+        /// Reserved Identifier
+        /// </summary>
+        [UmbracoObjectType(Constants.ObjectTypes.IdReservation)]
+        [FriendlyName("Identifier Reservation")]
+        IdReservation
+
     }
 }

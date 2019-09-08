@@ -10,6 +10,7 @@ using Umbraco.Web.Routing;
 using Umbraco.Web.Security;
 using umbraco.BusinessLogic;
 using umbraco.presentation.preview;
+using Umbraco.Core.CodeAnnotations;
 using GlobalSettings = umbraco.GlobalSettings;
 using IOHelper = Umbraco.Core.IO.IOHelper;
 using SystemDirectories = Umbraco.Core.IO.SystemDirectories;
@@ -19,9 +20,9 @@ namespace Umbraco.Web
     /// <summary>
     /// Class that encapsulates Umbraco information of a specific HTTP request
     /// </summary>
-    public class UmbracoContext : DisposableObject, IDisposeOnRequestEnd
+    public class UmbracoContext : DisposableObjectSlim, IDisposeOnRequestEnd
     {
-        private const string HttpContextItemName = "Umbraco.Web.UmbracoContext";
+        internal const string HttpContextItemName = "Umbraco.Web.UmbracoContext";
         private static readonly object Locker = new object();
 
         private bool _replacing;
@@ -125,12 +126,46 @@ namespace Umbraco.Web
             if (umbracoSettings == null) throw new ArgumentNullException("umbracoSettings");
             if (urlProviders == null) throw new ArgumentNullException("urlProviders");
 
+            //if there's already a singleton, and we're not replacing then there's no need to ensure anything
             if (UmbracoContext.Current != null)
             {
                 if (replaceContext == false)
                     return UmbracoContext.Current;
                 UmbracoContext.Current._replacing = true;
             }
+
+            var umbracoContext = CreateContext(httpContext, applicationContext, webSecurity, umbracoSettings, urlProviders, preview);
+
+            //assign the singleton
+            UmbracoContext.Current = umbracoContext;
+            return UmbracoContext.Current;
+        }
+
+        /// <summary>
+        /// Creates a standalone UmbracoContext instance
+        /// </summary>
+        /// <param name="httpContext"></param>
+        /// <param name="applicationContext"></param>
+        /// <param name="webSecurity"></param>
+        /// <param name="umbracoSettings"></param>
+        /// <param name="urlProviders"></param>        
+        /// <param name="preview"></param>
+        /// <returns>
+        /// A new instance of UmbracoContext
+        /// </returns>        
+        public static UmbracoContext CreateContext(
+            HttpContextBase httpContext,
+            ApplicationContext applicationContext,
+            WebSecurity webSecurity,
+            IUmbracoSettingsSection umbracoSettings,
+            IEnumerable<IUrlProvider> urlProviders,        
+            bool? preview)
+        {
+            if (httpContext == null) throw new ArgumentNullException("httpContext");
+            if (applicationContext == null) throw new ArgumentNullException("applicationContext");
+            if (webSecurity == null) throw new ArgumentNullException("webSecurity");
+            if (umbracoSettings == null) throw new ArgumentNullException("umbracoSettings");
+            if (urlProviders == null) throw new ArgumentNullException("urlProviders");          
 
             var umbracoContext = new UmbracoContext(
                 httpContext,
@@ -142,15 +177,15 @@ namespace Umbraco.Web
             // create the RoutingContext, and assign
             var routingContext = new RoutingContext(
                 umbracoContext,
-                
+
                 //TODO: Until the new cache is done we can't really expose these to override/mock
                 new Lazy<IEnumerable<IContentFinder>>(() => ContentFinderResolver.Current.Finders),
                 new Lazy<IContentFinder>(() => ContentLastChanceFinderResolver.Current.Finder),
-                
+
                 // create the nice urls provider
                 // there's one per request because there are some behavior parameters that can be changed
                 new Lazy<UrlProvider>(
-                    () => new UrlProvider(                        
+                    () => new UrlProvider(
                         umbracoContext,
                         umbracoSettings.WebRouting,
                         urlProviders),
@@ -159,9 +194,7 @@ namespace Umbraco.Web
             //assign the routing context back
             umbracoContext.RoutingContext = routingContext;
 
-            //assign the singleton
-            UmbracoContext.Current = umbracoContext;
-            return UmbracoContext.Current;
+            return umbracoContext;
         }
 
         /// <summary>
@@ -226,7 +259,7 @@ namespace Umbraco.Web
 
             var requestUrl = new Uri("http://localhost");
             var request = GetRequestFromContext();
-            if (request != null)
+            if (request != null && request.Url != null)
             {
                 requestUrl = request.Url;
             }
@@ -292,6 +325,8 @@ namespace Umbraco.Web
         /// <summary>
         /// Gets the current ApplicationContext
         /// </summary>
+        [UmbracoWillObsolete("Do not access the ApplicationContext via the UmbracoContext, either inject the ApplicationContext into the services you need or access it via it's own Singleton accessor ApplicationContext.Current")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public ApplicationContext Application { get; private set; }
 
         /// <summary>
@@ -434,14 +469,11 @@ namespace Umbraco.Web
             var request = GetRequestFromContext();
             if (request == null || request.Url == null)
                 return false;
-
-            var currentUrl = request.Url.AbsolutePath;
-            // zb-00004 #29956 : refactor cookies names & handling
+            
             return
-                //StateHelper.Cookies.Preview.HasValue // has preview cookie
                 HttpContext.Request.HasPreviewCookie()
-                && currentUrl.StartsWith(IOHelper.ResolveUrl(SystemDirectories.Umbraco)) == false
-                && UmbracoUser != null; // has user
+                && request.Url.IsBackOfficeRequest(HttpRuntime.AppDomainAppVirtualPath) == false
+                && Security.CurrentUser != null; // has user
         }
         
         private HttpRequestBase GetRequestFromContext()
@@ -460,18 +492,9 @@ namespace Umbraco.Web
         protected override void DisposeResources()
         {
             Security.DisposeIfDisposable();
-            Security = null;
-            _umbracoContext = null;
-            //ensure not to dispose this!
-            Application = null;
 
-            //Before we set these to null but in fact these are application lifespan singletons so 
-            //there's no reason we need to set them to null and this also caused a problem with packages
-            //trying to access the cache properties on RequestEnd.
-            //http://issues.umbraco.org/issue/U4-2734
-            //http://our.umbraco.org/projects/developer-tools/301-url-tracker/version-2/44327-Issues-with-URL-Tracker-in-614
-            //ContentCache = null;
-            //MediaCache = null;     
+            //If not running in a web ctx, ensure the thread based instance is nulled
+            _umbracoContext = null;
         }
     }
 }

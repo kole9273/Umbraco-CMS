@@ -106,12 +106,13 @@ namespace Umbraco.Core.Models.PublishedContent
         /// <param name="propertyTypeAlias">The property type alias.</param>
         /// <param name="dataTypeDefinitionId">The datatype definition identifier.</param>
         /// <param name="propertyEditorAlias">The property editor alias.</param>
+        /// <param name="initConverters">Generally used only for testing, in production this will always be true</param>
         /// <remarks>
         /// <para>The new published property type does not belong to a published content type.</para>
         /// <para>The values of <paramref name="dataTypeDefinitionId"/> and <paramref name="propertyEditorAlias"/> are
         /// assumed to be valid and consistent.</para>
         /// </remarks>
-        internal PublishedPropertyType(string propertyTypeAlias, int dataTypeDefinitionId, string propertyEditorAlias)
+        internal PublishedPropertyType(string propertyTypeAlias, int dataTypeDefinitionId, string propertyEditorAlias, bool initConverters = true)
         {
             // ContentType 
             // - in unit tests, to be set by PublishedContentType when creating it
@@ -122,7 +123,8 @@ namespace Umbraco.Core.Models.PublishedContent
             DataTypeId = dataTypeDefinitionId;
             PropertyEditorAlias = propertyEditorAlias;
 
-            InitializeConverters();
+            if (initConverters)
+                InitializeConverters();
         }
 
         #endregion
@@ -164,6 +166,9 @@ namespace Umbraco.Core.Models.PublishedContent
 
         private void InitializeConverters()
         {
+            //TODO: Look at optimizing this method, it gets run for every property type for the document being rendered at startup,
+            // every precious second counts!
+
             var converters = PropertyValueConvertersResolver.Current.Converters.ToArray();            
             var defaultConvertersWithAttributes = PropertyValueConvertersResolver.Current.DefaultConverters;
 
@@ -230,13 +235,13 @@ namespace Umbraco.Core.Models.PublishedContent
             {
                 _sourceCacheLevel = converterMeta.GetPropertyCacheLevel(this, PropertyCacheValue.Source);
                 _objectCacheLevel = converterMeta.GetPropertyCacheLevel(this, PropertyCacheValue.Object);
-                _objectCacheLevel = converterMeta.GetPropertyCacheLevel(this, PropertyCacheValue.XPath);
+                _xpathCacheLevel = converterMeta.GetPropertyCacheLevel(this, PropertyCacheValue.XPath);
             }
             else
             {
                 _sourceCacheLevel = GetCacheLevel(_converter, PropertyCacheValue.Source);
                 _objectCacheLevel = GetCacheLevel(_converter, PropertyCacheValue.Object);
-                _objectCacheLevel = GetCacheLevel(_converter, PropertyCacheValue.XPath);
+                _xpathCacheLevel = GetCacheLevel(_converter, PropertyCacheValue.XPath);
             }
             if (_objectCacheLevel < _sourceCacheLevel) _objectCacheLevel = _sourceCacheLevel;
             if (_xpathCacheLevel < _sourceCacheLevel) _xpathCacheLevel = _sourceCacheLevel;

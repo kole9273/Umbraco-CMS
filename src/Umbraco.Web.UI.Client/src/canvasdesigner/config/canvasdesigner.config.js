@@ -10,14 +10,9 @@ var canvasdesignerConfig = {
         selector: "body",
         editors: [
             {
-                type: "wide",
-                category: "Dimension",
-                name: "Layout"
-            },
-            {
                 type: "background",
                 category: "Color",
-                name: "Background",
+                name: "Background"
             },
             {
                 type: "color",
@@ -50,12 +45,12 @@ var canvasdesignerConfig = {
             {
                 type: "background",
                 category: "Color",
-                name: "Background",
+                name: "Background"
             },
             {
                 type: "border",
                 category: "Color",
-                name: "Border",
+                name: "Border"
             },
             {
                 type: "color",
@@ -88,7 +83,7 @@ var canvasdesignerConfig = {
             {
                 type: "googlefontpicker",
                 category: "Font",
-                name: "Font familly",
+                name: "Font familly"
             }
         ]
     },
@@ -110,7 +105,7 @@ var canvasdesignerConfig = {
                 name: "Margin",
                 enable: ["top", "bottom"],
                 schema: "#header"
-            },
+            }
         ]
     },
     {
@@ -129,7 +124,7 @@ var canvasdesignerConfig = {
                 type: "color",
                 category: "Font",
                 name: "Font color",
-                css: "color",
+                css: "color"
             }
         ]
     },
@@ -142,7 +137,7 @@ var canvasdesignerConfig = {
                 type: "color",
                 category: "Font",
                 name: "Font color",
-                css: "color",
+                css: "color"
             }
         ]
     },
@@ -155,7 +150,7 @@ var canvasdesignerConfig = {
                 type: "color",
                 category: "Font",
                 name: "Font color",
-                css: "color",
+                css: "color"
             },
             {
                 type: "slider",
@@ -168,7 +163,7 @@ var canvasdesignerConfig = {
             {
                 type: "margin",
                 category: "Position",
-                name: "Margin",
+                name: "Margin"
             }
 
         ]
@@ -182,7 +177,7 @@ var canvasdesignerConfig = {
                 type: "color",
                 category: "Font",
                 name: "Font color",
-                css: "color",
+                css: "color"
             },
             {
                 type: "slider",
@@ -195,7 +190,7 @@ var canvasdesignerConfig = {
             {
                 type: "margin",
                 category: "Position",
-                name: "Margin",
+                name: "Margin"
             }
 
         ]
@@ -221,7 +216,7 @@ var canvasdesignerConfig = {
             {
                 type: "background",
                 category: "Color",
-                name: "Background",
+                name: "Background"
             },
             {
                 type: "padding",
@@ -310,7 +305,7 @@ var canvasdesignerConfig = {
                 name: "Background Hover",
                 css: "background",
                 schema: ".button-alt:hover"
-            },
+            }
         ]
     }
 ]

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using umbraco.BasePages;
 using umbraco.BusinessLogic;
+using umbraco.uicontrols;
 using Umbraco.Core;
 using Umbraco.Core.Models;
 using RelationType = umbraco.cms.businesslogic.relation.RelationType;
@@ -82,7 +84,8 @@ namespace umbraco.cms.presentation.developer.RelationTypes
 				{
 					this._relations = new List<ReadOnlyRelation>();
 
-				    using (var reader = uQuery.SqlHelper.ExecuteReader(@"
+                    using (var sqlHelper = BusinessLogic.Application.SqlHelper)
+                    using (var reader = sqlHelper.ExecuteReader(@"
                         SELECT  A.id, 
                                 A.parentId,
 		                        B.[text] AS parentText,
@@ -114,7 +117,7 @@ namespace umbraco.cms.presentation.developer.RelationTypes
 					}
 				}
 
-				return this._relations;
+			    return this._relations;
 			}
 		}
 
@@ -125,7 +128,7 @@ namespace umbraco.cms.presentation.developer.RelationTypes
 		/// <param name="e">EventArgs (expect empty)</param>
 		protected void Page_Load(object sender, EventArgs e)
 		{
-			int id;
+            int id;
 			if (int.TryParse(Request.QueryString["id"], out id))
 			{
                 var relationService = Services.RelationService;
@@ -190,14 +193,15 @@ namespace umbraco.cms.presentation.developer.RelationTypes
 			relationTypeTabPage.Controls.Add(this.directionPane);
 			relationTypeTabPage.Controls.Add(this.objectTypePane);
 
-			var saveMenuImageButton =  tabControl.Menu.NewButton();
-			saveMenuImageButton.ToolTip = "save relation type";
-			saveMenuImageButton.Click +=saveMenuImageButton_Click;
-			saveMenuImageButton.CausesValidation = true;
-            saveMenuImageButton.Text = ui.Text("save");
-			saveMenuImageButton.ValidationGroup = "RelationType";
+			var save =  tabControl.Menu.NewButton();
+            save.Click +=saveMenuImageButton_Click;
+            save.CausesValidation = true;
+            save.Text = ui.Text("save");
+            save.ButtonType = MenuButtonType.Primary;
+            save.ID = "save";
+            save.ValidationGroup = "RelationType";
 
-			var relationsTabPage = this.tabControl.NewTabPage("Relations");
+            var relationsTabPage = this.tabControl.NewTabPage("Relations");
 			relationsTabPage.Controls.Add(this.relationsCountPane);
 			relationsTabPage.Controls.Add(this.relationsPane);
 
@@ -278,5 +282,25 @@ namespace umbraco.cms.presentation.developer.RelationTypes
 				}
 			}
 		}
+
+
+        public string GetEditUrl(string objectTypeName, int id)
+        {
+            var path = new StringBuilder();
+            path.Append(UmbracoPath.Replace("~", string.Empty));
+
+            if (objectTypeName == UmbracoObjectTypes.Document.GetFriendlyName())
+                path.Append("#/content/content/");
+            else if (objectTypeName == UmbracoObjectTypes.Media.GetFriendlyName())
+                path.Append("#/media/media/");
+            else if (objectTypeName == UmbracoObjectTypes.Member.GetFriendlyName())
+                path.Append("#/member/member/");
+            else
+                return string.Empty;
+
+            path.Append("edit/");
+            path.Append(id);
+            return path.ToString();
+        }
 	}
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using NUnit.Framework;
 using Umbraco.Core;
 using Umbraco.Core.Models.Rdbms;
@@ -9,11 +10,12 @@ using Umbraco.Core.Persistence.DatabaseModelDefinitions;
 using Umbraco.Core.Persistence.Migrations.Syntax.Create.Index;
 using Umbraco.Core.Persistence.Migrations.Syntax.Expressions;
 using Umbraco.Core.Persistence.SqlSyntax;
+using Umbraco.Tests.TestHelpers;
 
 namespace Umbraco.Tests.Persistence.SyntaxProvider
 {
     [TestFixture]
-    public class SqlCeSyntaxProviderTests
+    public class SqlCeSyntaxProviderTests : BaseUsingSqlCeSyntax
     {
 
         [Test]
@@ -35,7 +37,7 @@ namespace Umbraco.Tests.Persistence.SyntaxProvider
 FROM [cmsContentXml]
 INNER JOIN [umbracoNode]
 ON [cmsContentXml].[nodeId] = [umbracoNode].[id]
-WHERE ([umbracoNode].[nodeObjectType] = @0)) x)".Replace(Environment.NewLine, " ").Replace("\n", " ").Replace("\r", " "),
+WHERE (([umbracoNode].[nodeObjectType] = @0))) x)".Replace(Environment.NewLine, " ").Replace("\n", " ").Replace("\r", " "),
                                                 sqlOutput.SQL.Replace(Environment.NewLine, " ").Replace("\n", " ").Replace("\r", " "));
 
             Assert.AreEqual(1, sqlOutput.Arguments.Length);
@@ -49,23 +51,23 @@ WHERE ([umbracoNode].[nodeObjectType] = @0)) x)".Replace(Environment.NewLine, " 
             var sqlSyntax = new SqlCeSyntaxProvider();
 
             var type = typeof (NodeDto);
-            var definition = DefinitionFactory.GetTableDefinition(type);
+            var definition = DefinitionFactory.GetTableDefinition(sqlSyntax, type);
 
             string create = sqlSyntax.Format(definition);
             string primaryKey = sqlSyntax.FormatPrimaryKey(definition);
             var indexes = sqlSyntax.Format(definition.Indexes);
             var keys = sqlSyntax.Format(definition.ForeignKeys);
 
-            Console.WriteLine(create);
-            Console.WriteLine(primaryKey);
+            Debug.Print(create);
+            Debug.Print(primaryKey);
             foreach (var sql in keys)
             {
-                Console.WriteLine(sql);
+                Debug.Print(sql);
             }
 
             foreach (var sql in indexes)
             {
-                Console.WriteLine(sql);
+                Debug.Print(sql);
             }
         }
 
@@ -87,7 +89,7 @@ WHERE ([umbracoNode].[nodeObjectType] = @0)) x)".Replace(Environment.NewLine, " 
             var sqlSyntax = new SqlServerSyntaxProvider();
 
             var indexDefinition = CreateIndexDefinition();
-            indexDefinition.IsClustered = false;
+            indexDefinition.IndexType = IndexTypes.Clustered;
 
             var actual = sqlSyntax.Format(indexDefinition);
             Assert.AreEqual("CREATE CLUSTERED INDEX [IX_A] ON [TheTable] ([A])", actual);
@@ -117,6 +119,19 @@ WHERE ([umbracoNode].[nodeObjectType] = @0)) x)".Replace(Environment.NewLine, " 
             var builder = new CreateIndexBuilder(createExpression);
             builder.OnTable("TheTable").OnColumn("A").Ascending().WithOptions().Unique();
             Assert.AreEqual("CREATE UNIQUE NONCLUSTERED INDEX [IX_A] ON [TheTable] ([A])", createExpression.ToString());
+        }
+
+        [Test]
+        public void CreateIndexBuilder_SqlServer_Unique_CreatesUniqueNonClusteredIndex_Multi_Columnn()
+        {
+            var sqlSyntax = new SqlServerSyntaxProvider();
+            var createExpression = new CreateIndexExpression(DatabaseProviders.SqlServer, new[] { DatabaseProviders.SqlServer }, sqlSyntax)
+            {
+                Index = { Name = "IX_AB" }
+            };
+            var builder = new CreateIndexBuilder(createExpression);
+            builder.OnTable("TheTable").OnColumn("A").Ascending().OnColumn("B").Ascending().WithOptions().Unique();
+            Assert.AreEqual("CREATE UNIQUE NONCLUSTERED INDEX [IX_AB] ON [TheTable] ([A],[B])", createExpression.ToString());
         }
 
         [Test]

@@ -12,7 +12,7 @@ angular.module("Umbraco.canvasdesigner")
             fontFamily: '',
             fontType: '',
             fontWeight: '',
-            fontStyle: '',
+            fontStyle: ''
         }
     }
 
@@ -74,7 +74,7 @@ angular.module("Umbraco.canvasdesigner")
             fontType: "safe",
             fontFamily: value,
             fontWeight: "normal",
-            fontStyle: "normal",
+            fontStyle: "normal"
         });
     });
 
@@ -104,6 +104,30 @@ angular.module("Umbraco.canvasdesigner")
         }
     };
 
+    function loadFont(font, variant) {
+        WebFont.load({
+            google: {
+                families: [font.fontFamily + ":" + variant]
+            },
+            loading: function () {
+                console.log('loading');
+            },
+            active: function () {
+                $scope.selectedFont = font;
+                $scope.selectedFont.fontWeight = googleGetWeight(variant);
+                $scope.selectedFont.fontStyle = googleGetStyle(variant);
+                // If $apply isn't called, the new font family isn't applied until the next user click.
+                $scope.change({
+                    fontFamily: $scope.selectedFont.fontFamily,
+                    fontType: $scope.selectedFont.fontType,
+                    fontWeight: $scope.selectedFont.fontWeight,
+                    fontStyle: $scope.selectedFont.fontStyle
+                });
+            }
+        });
+    }
+
+    var webFontScriptLoaded = false;
     $scope.showFontPreview = function (font, variant) {
 
         if (!variant)
@@ -114,27 +138,19 @@ angular.module("Umbraco.canvasdesigner")
             // Font needs to be independently loaded in the iframe for live preview to work.
             document.getElementById("resultFrame").contentWindow.getFont(font.fontFamily + ":" + variant);
 
-            WebFont.load({
-                google: {
-                    families: [font.fontFamily + ":" + variant]
-                },
-                loading: function () {
-                    console.log('loading');
-                },
-                active: function () {
-                    $scope.selectedFont = font;
-                    $scope.selectedFont.fontWeight = googleGetWeight(variant);
-                    $scope.selectedFont.fontStyle = googleGetStyle(variant);
-                    // If $apply isn't called, the new font family isn't applied until the next user click.
-                    $scope.change({
-                        fontFamily: $scope.selectedFont.fontFamily,
-                        fontType: $scope.selectedFont.fontType,
-                        fontWeight: $scope.selectedFont.fontWeight,
-                        fontStyle: $scope.selectedFont.fontStyle,
+            if (!webFontScriptLoaded) {
+                $.getScript('https://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js')
+                    .done(function() {
+                        webFontScriptLoaded = true;
+                        loadFont(font, variant);
+                    })
+                    .fail(function() {
+                        console.log('error loading webfont');
                     });
-                }
-            });
-
+            }
+            else {
+                loadFont(font, variant);
+            }
         }
         else {
 
@@ -145,7 +161,7 @@ angular.module("Umbraco.canvasdesigner")
                 fontFamily: $scope.selectedFont.fontFamily,
                 fontType: $scope.selectedFont.fontType,
                 fontWeight: $scope.selectedFont.fontWeight,
-                fontStyle: $scope.selectedFont.fontStyle,
+                fontStyle: $scope.selectedFont.fontStyle
             });
         }
 
@@ -162,7 +178,7 @@ angular.module("Umbraco.canvasdesigner")
             fontFamily: $scope.selectedFont.fontFamily,
             fontType: $scope.selectedFont.fontType,
             fontWeight: $scope.selectedFont.fontWeight,
-            fontStyle: $scope.selectedFont.fontStyle,
+            fontStyle: $scope.selectedFont.fontStyle
         });
     };
 

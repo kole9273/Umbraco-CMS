@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Linq;
+using System.Web;
 using System.Web.Security;
 using System.Web.UI;
 using System.Web.UI.WebControls;
@@ -41,7 +42,7 @@ namespace umbraco.presentation.umbraco.dialogs
         protected void selectMode(object sender, EventArgs e)
         {
             p_mode.Visible = false;
-            p_buttons.Visible = true;
+            p_setup.Visible = true;
 
             if (rb_simple.Checked)
             {
@@ -124,28 +125,31 @@ namespace umbraco.presentation.umbraco.dialogs
                         bt_protect.CommandName = "advanced";
                     }
 
-                    p_buttons.Visible = true;
                     p_mode.Visible = false;
+                    p_setup.Visible = true;
                 }
             }
 
             // Load up membergrouops
             _memberGroups.ID = "Membergroups";
             _memberGroups.Width = 175;
+            _memberGroups.Height = 165;
             var selectedGroups = "";
-            var roles = Roles.GetAllRoles().OrderBy(x => x);
 
-            if (roles.Any())
+            // get roles from the membership provider
+            var roles = Roles.GetAllRoles().OrderBy(x => x).ToArray();
+
+            if (roles.Length > 0)
             {
-                foreach (string role in roles)
+                foreach (var role in roles)
                 {
-                    ListItem li = new ListItem(role, role);
-                    if (IsPostBack == false)
-                    {
-                        if (Access.IsProtectedByMembershipRole(int.Parse(helper.Request("nodeid")), role))
-                            selectedGroups += role + ",";
-                    }
-                    _memberGroups.Items.Add(li);
+                    var listItem = new ListItem(role, role);
+                    _memberGroups.Items.Add(listItem);
+                    if (IsPostBack) continue;
+
+                    // first time, initialize selected roles
+                    if (Access.IsProtectedByMembershipRole(documentId, role))
+                        selectedGroups += role + ",";
                 }
             }
             else
@@ -153,11 +157,13 @@ namespace umbraco.presentation.umbraco.dialogs
                 p_noGroupsFound.Visible = true;
                 rb_advanced.Enabled = false;
             }
+
             _memberGroups.Value = selectedGroups;
             groupsSelector.Controls.Add(_memberGroups);
 
 
-            bt_protect.Text = ui.Text("update");
+            bt_selectMode.Text = ui.Text("buttons", "select");
+            bt_protect.Text = ui.Text("save");
             bt_buttonRemoveProtection.Text = ui.Text("paRemoveProtection");
 
             // Put user code to initialize the page here
@@ -184,70 +190,70 @@ namespace umbraco.presentation.umbraco.dialogs
 
             var provider = MembershipProviderExtensions.GetMembersMembershipProvider();
 
-            if (Page.IsValid)
+            int pageId = int.Parse(helper.Request("nodeId"));
+
+            if (e.CommandName == "simple")
             {
-                int pageId = int.Parse(helper.Request("nodeId"));
+                var memberLogin = simpleLogin.Visible ? simpleLogin.Text : SimpleLoginLabel.Text;
 
-                if (e.CommandName == "simple")
+                var member = provider.GetUser(memberLogin, false);
+                if (member == null)
                 {
-                    var memberLogin = simpleLogin.Visible ? simpleLogin.Text : SimpleLoginLabel.Text;
+                    var tempEmail = "u" + Guid.NewGuid().ToString("N") + "@example.com";
 
-                    var member = provider.GetUser(memberLogin, false);
-                    if (member == null)
+                    // this needs to work differently depending on umbraco members or external membership provider
+                    if (provider.IsUmbracoMembershipProvider() == false)
                     {
-                        var tempEmail = "u" + Guid.NewGuid().ToString("N") + "@example.com";
-
-                        // this needs to work differently depending on umbraco members or external membership provider
-                        if (provider.IsUmbracoMembershipProvider() == false)
+                        member = provider.CreateUser(memberLogin, simplePassword.Text, tempEmail);
+                    }
+                    else
+                    {
+                        //if it's the umbraco membership provider, then we need to tell it what member type to create it with
+                        if (MemberType.GetByAlias(Constants.Conventions.MemberTypes.SystemDefaultProtectType) == null)
                         {
-                            member = provider.CreateUser(memberLogin, simplePassword.Text, tempEmail);
+                            MemberType.MakeNew(BusinessLogic.User.GetUser(0), Constants.Conventions.MemberTypes.SystemDefaultProtectType);
                         }
-                        else
+                        var castedProvider = provider.AsUmbracoMembershipProvider();
+                        MembershipCreateStatus status;
+                        member = castedProvider.CreateUser(Constants.Conventions.MemberTypes.SystemDefaultProtectType,
+                                            memberLogin, simplePassword.Text, tempEmail, null, null, true, null, out status);
+                        if (status != MembershipCreateStatus.Success)
                         {
-                            //if it's the umbraco membership provider, then we need to tell it what member type to create it with
-                            if (MemberType.GetByAlias(Constants.Conventions.MemberTypes.SystemDefaultProtectType) == null)
-                            {
-                                MemberType.MakeNew(BusinessLogic.User.GetUser(0), Constants.Conventions.MemberTypes.SystemDefaultProtectType);
-                            }
-                            var castedProvider = provider.AsUmbracoMembershipProvider();
-                            MembershipCreateStatus status;
-                            member = castedProvider.CreateUser(Constants.Conventions.MemberTypes.SystemDefaultProtectType,
-                                                memberLogin, simplePassword.Text, tempEmail, null, null, true, null, out status);
-                            if (status != MembershipCreateStatus.Success)
-                            {
-                                SimpleLoginNameValidator.IsValid = false;
-                                SimpleLoginNameValidator.ErrorMessage = "Could not create user: " + status;
-                                SimpleLoginNameValidator.Text = "Could not create user: " + status;
-                                return;
-                            }
+                            SimpleLoginNameValidator.IsValid = false;
+                            SimpleLoginNameValidator.ErrorMessage = "Could not create user: " + status;
+                            SimpleLoginNameValidator.Text = "Could not create user: " + status;
+                            return;
                         }
                     }
-                    else if (pp_pass.Visible)
-                    {
-                        SimpleLoginNameValidator.IsValid = false;
-                        SimpleLoginLabel.Visible = true;
-                        SimpleLoginLabel.Text = memberLogin;
-                        simpleLogin.Visible = false;
-                        pp_pass.Visible = false;
-                        return;
-                    }
-
-                    // Create or find a memberGroup
-                    var simpleRoleName = "__umbracoRole_" + member.UserName;
-                    if (Roles.RoleExists(simpleRoleName) == false)
-                    {
-                        Roles.CreateRole(simpleRoleName);
-                    }
-                    if (Roles.IsUserInRole(member.UserName, simpleRoleName) == false)
-                    {
-                        Roles.AddUserToRole(member.UserName, simpleRoleName);
-                    }
-
-                    Access.ProtectPage(true, pageId, int.Parse(loginPagePicker.Value), int.Parse(errorPagePicker.Value));
-                    Access.AddMembershipRoleToDocument(pageId, simpleRoleName);
-                    Access.AddMembershipUserToDocument(pageId, member.UserName);
                 }
-                else if (e.CommandName == "advanced")
+                else if (pp_pass.Visible)
+                {
+                    SimpleLoginNameValidator.IsValid = false;
+                    SimpleLoginLabel.Visible = true;
+                    SimpleLoginLabel.Text = memberLogin;
+                    simpleLogin.Visible = false;
+                    pp_pass.Visible = false;
+                    return;
+                }
+
+                // Create or find a memberGroup
+                var simpleRoleName = "__umbracoRole_" + member.UserName;
+                if (Roles.RoleExists(simpleRoleName) == false)
+                {
+                    Roles.CreateRole(simpleRoleName);
+                }
+                if (Roles.IsUserInRole(member.UserName, simpleRoleName) == false)
+                {
+                    Roles.AddUserToRole(member.UserName, simpleRoleName);
+                }
+
+                Access.ProtectPage(true, pageId, int.Parse(loginPagePicker.Value), int.Parse(errorPagePicker.Value));
+                Access.AddMembershipRoleToDocument(pageId, simpleRoleName);
+                Access.AddMembershipUserToDocument(pageId, member.UserName);
+            }
+            else if (e.CommandName == "advanced")
+            {
+                if (cv_errorPage.IsValid && cv_loginPage.IsValid)
                 {
                     Access.ProtectPage(false, pageId, int.Parse(loginPagePicker.Value), int.Parse(errorPagePicker.Value));
 
@@ -257,39 +263,39 @@ namespace umbraco.presentation.umbraco.dialogs
                         else
                             Access.RemoveMembershipRoleFromDocument(pageId, li.Value);
                 }
-
-                feedback.Text = ui.Text("publicAccess", "paIsProtected", new cms.businesslogic.CMSNode(pageId).Text) + "</p><p><a href='#' onclick='" + ClientTools.Scripts.CloseModalWindow() + "'>" + ui.Text("closeThisWindow") + "</a>";
-
-                p_buttons.Visible = false;
-                pane_advanced.Visible = false;
-                pane_simple.Visible = false;
-                var content = ApplicationContext.Current.Services.ContentService.GetById(pageId);
-                //reloads the current node in the tree
-                ClientTools.SyncTree(content.Path, true);
-                //reloads the current node's children in the tree
-                ClientTools.ReloadActionNode(false, true);
-                feedback.type = global::umbraco.uicontrols.Feedback.feedbacktype.success;
+                else
+                {
+                    return;
+                }
             }
+
+            feedback_text.Text = HttpUtility.HtmlEncode(ui.Text("publicAccess", "paIsProtected", new cms.businesslogic.CMSNode(pageId).Text));
+
+            p_setup.Visible = false;
+            p_feedback.Visible = true;
+            var content = ApplicationContext.Current.Services.ContentService.GetById(pageId);
+            //reloads the current node in the tree
+            ClientTools.SyncTree(content.Path, true);
+            //reloads the current node's children in the tree
+            ClientTools.ReloadActionNode(false, true);
         }
 
 
         protected void buttonRemoveProtection_Click(object sender, System.EventArgs e)
         {
             int pageId = int.Parse(helper.Request("nodeId"));
-            p_buttons.Visible = false;
-            pane_advanced.Visible = false;
-            pane_simple.Visible = false;
+            p_setup.Visible = false;
 
             Access.RemoveProtection(pageId);
 
-            feedback.Text = ui.Text("publicAccess", "paIsRemoved", new cms.businesslogic.CMSNode(pageId).Text) + "</p><p><a href='#' onclick='" + ClientTools.Scripts.CloseModalWindow() + "'>" + ui.Text("closeThisWindow") + "</a>";
+            feedback_text.Text = HttpUtility.HtmlEncode(ui.Text("publicAccess", "paIsRemoved", new cms.businesslogic.CMSNode(pageId).Text));
+            p_feedback.Visible = true;
 
             var content = ApplicationContext.Current.Services.ContentService.GetById(pageId);
             //reloads the current node in the tree
             ClientTools.SyncTree(content.Path, true);
             //reloads the current node's children in the tree
             ClientTools.ReloadActionNode(false, true);
-            feedback.type = global::umbraco.uicontrols.Feedback.feedbacktype.success;
         }
 
         protected CustomValidator SimpleLoginNameValidator;
@@ -305,13 +311,13 @@ namespace umbraco.presentation.umbraco.dialogs
         protected global::System.Web.UI.HtmlControls.HtmlInputHidden tempFile;
 
         /// <summary>
-        /// feedback control.
+        /// p_feedback control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::umbraco.uicontrols.Feedback feedback;
+        protected global::System.Web.UI.WebControls.Panel p_feedback;
 
         /// <summary>
         /// p_mode control.
@@ -321,6 +327,15 @@ namespace umbraco.presentation.umbraco.dialogs
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.Panel p_mode;
+
+        /// <summary>
+        /// p_setup control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Panel p_setup;
 
         /// <summary>
         /// pane_chooseMode control.
@@ -458,15 +473,6 @@ namespace umbraco.presentation.umbraco.dialogs
         protected global::System.Web.UI.WebControls.PlaceHolder groupsSelector;
 
         /// <summary>
-        /// p_buttons control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.Panel p_buttons;
-
-        /// <summary>
         /// pane_pages control.
         /// </summary>
         /// <remarks>
@@ -573,6 +579,15 @@ namespace umbraco.presentation.umbraco.dialogs
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.PlaceHolder js;
+
+        /// <summary>
+        /// feedback_text control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Literal feedback_text;
 
 
     }

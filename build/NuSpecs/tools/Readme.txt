@@ -10,6 +10,7 @@
 
 Don't forget to build!
 
+
 When upgrading your website using NuGet you should answer "No" to the questions to overwrite the Web.config 
 file (and config files in the config folder). 
 
@@ -19,7 +20,7 @@ Publish this won't affect you.
 The following items will now be automatically included when creating a deploy package or publishing to the file 
 system: umbraco, umbraco_client, config\splashes and global.asax.
 
-Please read the release notes on our.umbraco.org:
-http://our.umbraco.org/contribute/releases
+Please read the release notes on our.umbraco.com:
+https://our.umbraco.com/download/releases
 
 - Umbraco

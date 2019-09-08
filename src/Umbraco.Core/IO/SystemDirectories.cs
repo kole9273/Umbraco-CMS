@@ -69,7 +69,16 @@ namespace Umbraco.Core.IO
             }
         }
 
-		public static string AppPlugins
+        public static string AppCode
+        {
+            get
+            {
+                //NOTE: this is not configurable and shouldn't need to be
+                return "~/App_Code";
+            }
+        }
+
+        public static string AppPlugins
 		{
 			get
 			{
@@ -87,7 +96,23 @@ namespace Umbraco.Core.IO
 			}
 		}
 
-       
+        public static string PartialViews
+        {
+            get
+            {
+                return MvcViews + "/Partials/";
+            }
+        }
+
+        public static string MacroPartials
+        {
+            get
+            {
+                return MvcViews + "/MacroPartials/"; 
+                
+            }
+        }
+
         public static string Media
         {
             get
@@ -154,7 +179,7 @@ namespace Umbraco.Core.IO
         {
             get
             {
-                return IOHelper.ReturnPath("umbracoWebservicesPath", "~/umbraco/webservices");
+                return IOHelper.ReturnPath("umbracoWebservicesPath", Umbraco.EnsureEndsWith("/") + "webservices");
             }
         }
 
@@ -178,7 +203,6 @@ namespace Umbraco.Core.IO
         {
             get
             {
-                //by default the packages folder should exist in the data folder
                 return IOHelper.ReturnPath("umbracoPreviewPath", Data + IOHelper.DirSepChar + "preview");
             }
         }

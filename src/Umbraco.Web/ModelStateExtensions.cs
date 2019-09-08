@@ -61,10 +61,10 @@ namespace Umbraco.Web
         {
             //if there are no member names supplied then we assume that the validation message is for the overall property
             // not a sub field on the property editor
-            if (!result.MemberNames.Any())
+            if (result.MemberNames.Any() == false)
             {
                 //add a model state error for the entire property
-                modelState.AddModelError(string.Format("{0}.{1}", "Properties", propertyAlias), result.ErrorMessage);
+                modelState.AddModelError(string.Format("{0}.{1}", "_Properties", propertyAlias), result.ErrorMessage);
             }
             else
             {
@@ -72,7 +72,7 @@ namespace Umbraco.Web
                 // so that we can try to match it up to a real sub field of this editor
                 foreach (var field in result.MemberNames)
                 {
-                    modelState.AddModelError(string.Format("{0}.{1}.{2}", "Properties", propertyAlias, field), result.ErrorMessage);
+                    modelState.AddModelError(string.Format("{0}.{1}.{2}", "_Properties", propertyAlias, field), result.ErrorMessage);
                 }
             }
         }

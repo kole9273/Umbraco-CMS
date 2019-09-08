@@ -5,7 +5,7 @@ describe('Content picker controller tests', function () {
     beforeEach(module('umbraco'));
 
     //inject the contentMocks service
-    beforeEach(inject(function ($rootScope, $controller, angularHelper, $httpBackend, entityMocks, mocksUtils) {
+    beforeEach(inject(function ($rootScope, $controller, angularHelper, $httpBackend, entityMocks, mocksUtils, localizationMocks) {
 
         //for these tests we don't want any authorization to occur
         mocksUtils.disableAuth();
@@ -17,7 +17,11 @@ describe('Content picker controller tests', function () {
                         value:"1233,1231,23121",
                         label: "My content picker",
                         description: "desc",
-                        config: {}
+                        config: {
+                            startNode: {
+                                type: "content"
+                            }
+                        }
                       };
 
         //this controller requires an angular form controller applied to it
@@ -28,6 +32,7 @@ describe('Content picker controller tests', function () {
         //have the contentMocks register its expect urls on the httpbackend
         //see /mocks/content.mocks.js for how its setup
         entityMocks.register();
+        localizationMocks.register();
 
         controller = $controller('Umbraco.PropertyEditors.ContentPickerController', {
             $scope: scope,
@@ -46,25 +51,30 @@ describe('Content picker controller tests', function () {
     }));
 
     describe('content edit controller save and publish', function () {
+        
+        var item = {
+            name: "meh",
+            id: 666,
+            icon: "woop"
+        };
 
         it('should define the default properties on construction', function () {
-            expect(scope.model.value).toNotBe(undefined);
+            expect(scope.model.value).not.toBeUndefined();            
         });
         
         it("should populate scope.renderModel", function(){
-            expect(scope.renderModel).toNotBe(undefined);
+            expect(scope.renderModel).not.toBeUndefined();
             expect(scope.renderModel.length).toBe(3);
         });
 
         it("Each rendermodel item should contain name, id and icon", function(){
             var item = scope.renderModel[0];
-            expect(item.name).toNotBe(undefined);
+            expect(item.name).not.toBeUndefined();
             expect(item.id).toBe(1233);
-            expect(item.icon).toNotBe(undefined);
+            expect(item.icon).not.toBeUndefined();
         });
 
         it("Removing an item should update renderModel, ids and model.value", function(){
-            
             scope.remove(1);
             scope.$apply();
             expect(scope.renderModel.length).toBe(2);
@@ -72,24 +82,29 @@ describe('Content picker controller tests', function () {
         });
 
         it("Adding an item should update renderModel, ids and model.value", function(){
-            
-            scope.add({name: "meh", id: 666, icon: "woop"});
+            scope.add(item);
             scope.$apply();
-            expect(scope.renderModel.length).toBe(4);
-            expect(scope.model.value).toBe("1233,1231,23121,666");
+            setTimeout(function(){
+                expect(scope.renderModel.length).toBe(4);
+                expect(scope.model.value).toBe("1233,1231,23121,666");
+            }, 1000);
         });
 
-        it("Adding a dublicate item should note update renderModel, ids and model.value", function(){
-            
-            scope.add({ name: "meh", id: 666, icon: "woop" });
+        it("Adding a duplicate item should note update renderModel, ids and model.value", function(){
+            scope.add(item);
             scope.$apply();
-            expect(scope.renderModel.length).toBe(4);
-            expect(scope.model.value).toBe("1233,1231,23121,666");
+            setTimeout(function(){
+                expect(scope.renderModel.length).toBe(4);
+                expect(scope.model.value).toBe("1233,1231,23121,666");
+            }, 1000);
 
-            scope.add({ name: "meh 2", id: 666, icon: "woop 2" });
+            scope.add(item);
             scope.$apply();
-            expect(scope.renderModel.length).toBe(4);
-            expect(scope.model.value).toBe("1233,1231,23121,666");
+            setTimeout(function(){
+                expect(scope.renderModel.length).toBe(4);
+                expect(scope.model.value).toBe("1233,1231,23121,666");
+            }, 1000);
+
         });  
     });
 });

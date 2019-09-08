@@ -19,19 +19,23 @@ namespace Umbraco.Core.PropertyEditors
             EditorView = editorView;
 
             //defaults
-            ValueType = "string";
+            ValueType = PropertyEditorValueTypes.String;
+            Icon = Constants.Icons.PropertyEditor;
+            Group = "common";
         }
 
         public PropertyEditorAttribute(string alias, string name)
         {
-            Mandate.ParameterNotNullOrEmpty(alias, "id");
+            Mandate.ParameterNotNullOrEmpty(alias, "alias");
             Mandate.ParameterNotNullOrEmpty(name, "name");
 
             Alias = alias;
             Name = name;
 
             //defaults
-            ValueType = "string";
+            ValueType = PropertyEditorValueTypes.String;
+            Icon = Constants.Icons.PropertyEditor;
+            Group = "common";
         }
 
         public PropertyEditorAttribute(string alias, string name, string valueType, string editorView)
@@ -45,6 +49,9 @@ namespace Umbraco.Core.PropertyEditors
             Name = name;
             ValueType = valueType;
             EditorView = editorView;
+
+            Icon = Constants.Icons.PropertyEditor;
+            Group = "common";
         }
 
         public string Alias { get; private set; }
@@ -54,8 +61,25 @@ namespace Umbraco.Core.PropertyEditors
         public bool IsParameterEditor { get; set; }
 
         /// <summary>
+        /// If set to true, this property editor will not show up in the DataType's drop down list
+        /// if there is not already one of them chosen for a DataType
+        /// </summary>
+        public bool IsDeprecated { get; set; }
+
+        /// <summary>
         /// If this is is true than the editor will be displayed full width without a label
         /// </summary>
         public bool HideLabel { get; set; }
+
+        /// <summary>
+        /// Optional, If this is set, datatypes using the editor will display this icon instead of the default system one.
+        /// </summary>
+        public string Icon { get; set; }
+
+        /// <summary>
+        /// Optional - if this is set, the datatype ui will display the editor in this group instead of the default one, by default an editor does not have a group.
+        /// The group has no effect on how a property editor is stored or referenced.
+        /// </summary>
+        public string Group { get; set; }
     }
 }

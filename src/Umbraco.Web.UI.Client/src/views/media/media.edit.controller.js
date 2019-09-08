@@ -12,12 +12,20 @@ function mediaEditController($scope, $routeParams, appState, mediaResource, enti
     $scope.currentSection = appState.getSectionState("currentSection");
     $scope.currentNode = null; //the editors affiliated node
 
+    $scope.page = {};
+    $scope.page.loading = false;
+    $scope.page.menu = {};
+    $scope.page.menu.currentSection = appState.getSectionState("currentSection");
+    $scope.page.menu.currentNode = null; //the editors affiliated node
+    $scope.page.listViewPath = null;
+    $scope.page.saveButtonState = "init";
+
     /** Syncs the content item to it's tree node - this occurs on first load and after saving */
     function syncTreeNode(content, path, initialLoad) {
 
         if (!$scope.content.isChildOfListView) {
             navigationService.syncTree({ tree: "media", path: path.split(","), forceReload: initialLoad !== true }).then(function (syncArgs) {
-                $scope.currentNode = syncArgs.node;
+                $scope.page.menu.currentNode = syncArgs.node;
             });
         }
         else if (initialLoad === true) {
@@ -30,29 +38,39 @@ function mediaEditController($scope, $routeParams, appState, mediaResource, enti
             umbRequestHelper.resourcePromise(
                 $http.get(content.treeNodeUrl),
                 'Failed to retrieve data for child node ' + content.id).then(function (node) {
-                    $scope.currentNode = node;
+                    $scope.page.menu.currentNode = node;
                 });
         }
     }
 
     if ($routeParams.create) {
 
+        $scope.page.loading = true;
+
         mediaResource.getScaffold($routeParams.id, $routeParams.doctype)
             .then(function (data) {
-                $scope.loaded = true;
                 $scope.content = data;
 
                 editorState.set($scope.content);
+
+                // We don't get the info tab from the server from version 7.8 so we need to manually add it
+                contentEditingHelper.addInfoTab($scope.content.tabs);
+
+                $scope.page.loading = false;
+
             });
     }
     else {
+
+        $scope.page.loading = true;
+
         mediaResource.getById($routeParams.id)
             .then(function (data) {
-                $scope.loaded = true;
+
                 $scope.content = data;
                 
                 if (data.isChildOfListView && data.trashed === false) {
-                    $scope.listViewPath = ($routeParams.page)
+                    $scope.page.listViewPath = ($routeParams.page)
                         ? "/media/media/edit/" + data.parentId + "?page=" + $routeParams.page
                         : "/media/media/edit/" + data.parentId;
                 }
@@ -75,7 +93,12 @@ function mediaEditController($scope, $routeParams, appState, mediaResource, enti
                         });
                 }
 
-            });  
+                // We don't get the info tab from the server from version 7.8 so we need to manually add it
+                contentEditingHelper.addInfoTab($scope.content.tabs);
+
+                $scope.page.loading = false;
+
+            });
     }
     
     $scope.save = function () {
@@ -83,6 +106,7 @@ function mediaEditController($scope, $routeParams, appState, mediaResource, enti
         if (!$scope.busy && formHelper.submitForm({ scope: $scope, statusMessage: "Saving..." })) {
 
             $scope.busy = true;
+            $scope.page.saveButtonState = "busy";
 
             mediaResource.save($scope.content, $routeParams.create, fileManager.getFiles())
                 .then(function(data) {
@@ -99,6 +123,8 @@ function mediaEditController($scope, $routeParams, appState, mediaResource, enti
                     $scope.busy = false;
 
                     syncTreeNode($scope.content, data.path);
+
+                    $scope.page.saveButtonState = "success";
 
                 }, function(err) {
 
@@ -117,12 +143,15 @@ function mediaEditController($scope, $routeParams, appState, mediaResource, enti
 
                     editorState.set($scope.content);
                     $scope.busy = false;
+                    $scope.page.saveButtonState = "error";
+
                 });
         }else{
             $scope.busy = false;
         }
         
     };
+
 }
 
 angular.module("umbraco")

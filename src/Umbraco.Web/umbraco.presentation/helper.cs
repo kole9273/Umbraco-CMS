@@ -95,12 +95,14 @@ namespace umbraco
             {
                 var attributeValueSplit = (attributeValue).Split(',');
 
+                attributeValueSplit = attributeValueSplit.Select(x => x.Trim()).ToArray();
+
                 // before proceeding, we don't want to process anything here unless each item starts/ends with a [ ]
                 // this is because the attribute value could actually just be a json array like [1,2,3] which we don't want to parse
                 //
                 // however, the last one can be a literal, must take care of this!
                 // so here, don't check the last one, which can be just anything
-                if (attributeValueSplit.Take(attributeValueSplit.Length - 1).All(x =>
+                if (attributeValueSplit.Take(attributeValueSplit.Length - 1).All(x => 
                     //must end with [
                     x.EndsWith("]") &&
                     //must start with [ and a special char
@@ -112,14 +114,17 @@ namespace umbraco
                 foreach (var attributeValueItem in attributeValueSplit)
                 {
                     attributeValue = attributeValueItem;
+                    var trimmedValue = attributeValue.Trim();
 
                     // Check for special variables (always in square-brackets like [name])
-                    if (attributeValueItem.StartsWith("[") &&
-                        attributeValueItem.EndsWith("]"))
+                    if (trimmedValue.StartsWith("[") &&
+                        trimmedValue.EndsWith("]"))
                     {
+                        attributeValue = trimmedValue;
+
                         // find key name
-                        var keyName = attributeValueItem.Substring(2, attributeValueItem.Length - 3);
-                        var keyType = attributeValueItem.Substring(1, 1);
+                        var keyName = attributeValue.Substring(2, attributeValue.Length - 3);
+                        var keyType = attributeValue.Substring(1, 1);
 
                         switch (keyType)
                         {
@@ -132,12 +137,16 @@ namespace umbraco
                                     attributeValue = StateHelper.GetCookieValue(keyName);
                                 break;
                             case "#":
+                                if (pageElements == null)
+                                    pageElements = GetPageElements();
                                 if (pageElements[keyName] != null)
                                     attributeValue = pageElements[keyName].ToString();
                                 else
                                     attributeValue = "";
                                 break;
                             case "$":
+                                if (pageElements == null)
+                                    pageElements = GetPageElements();
                                 if (pageElements[keyName] != null && pageElements[keyName].ToString() != string.Empty)
                                 {
                                     attributeValue = pageElements[keyName].ToString();
@@ -183,6 +192,14 @@ namespace umbraco
             }
 
             return attributeValue;
+        }
+
+        private static IDictionary GetPageElements()
+        {
+            IDictionary pageElements = null;
+            if (HttpContext.Current.Items["pageElements"] != null)
+                pageElements = (IDictionary)HttpContext.Current.Items["pageElements"];
+            return pageElements;
         }
 
         [UmbracoWillObsolete("We should really obsolete that one.")]

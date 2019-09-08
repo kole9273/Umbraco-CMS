@@ -1,11 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Web;
 using System.Web.Security;
+using Newtonsoft.Json;
 using Umbraco.Core;
 using Umbraco.Core.Configuration;
-using Umbraco.Core.Persistence;
 using Umbraco.Web.Install.Models;
 
 namespace Umbraco.Web.Install.InstallSteps
@@ -18,17 +21,20 @@ namespace Umbraco.Web.Install.InstallSteps
     /// error, etc... and the end-user refreshes the installer then we cannot show the user screen because they've already entered that information so instead we'll    
     /// display a simple continue installation view.
     /// </remarks>
-    [InstallSetupStep(InstallationType.NewInstall,
-        "User", 20, "")]
+    [InstallSetupStep(InstallationType.NewInstall, "User", 20, "")]
     internal class NewInstallStep : InstallSetupStep<UserModel>
     {
+        private readonly HttpContextBase _http;
         private readonly ApplicationContext _applicationContext;
+        private static HttpClient _httpClient;
 
-        public NewInstallStep(ApplicationContext applicationContext)
+        public NewInstallStep(HttpContextBase http, ApplicationContext applicationContext)
         {
+            _http = http;
             _applicationContext = applicationContext;
         }
 
+        //TODO: Change all logic in this step to use ASP.NET Identity NOT MembershipProviders
         private MembershipProvider CurrentProvider
         {
             get
@@ -60,7 +66,7 @@ namespace Umbraco.Web.Install.InstallSteps
                     throw new FormatException("Password must be at least " + CurrentProvider.MinRequiredPasswordLength + " characters long and contain at least " + CurrentProvider.MinRequiredNonAlphanumericCharacters + " symbols");
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw new FormatException("Password must be at least " + CurrentProvider.MinRequiredPasswordLength + " characters long and contain at least " + CurrentProvider.MinRequiredNonAlphanumericCharacters + " symbols");
             }
@@ -70,15 +76,18 @@ namespace Umbraco.Web.Install.InstallSteps
             admin.Username = user.Email.Trim();
 
             _applicationContext.Services.UserService.Save(admin);
-
-
+            
             if (user.SubscribeToNewsLetter)
             {
+                if (_httpClient == null)
+                    _httpClient = new HttpClient();
+
+                var values = new NameValueCollection { { "name", admin.Name }, { "email", admin.Email } };
+                var content = new StringContent(JsonConvert.SerializeObject(values), Encoding.UTF8, "application/json");
+
                 try
                 {
-                    var client = new System.Net.WebClient();
-                    var values = new NameValueCollection { { "name", admin.Name }, { "email", admin.Email} };
-                    client.UploadValues("http://umbraco.org/base/Ecom/SubmitEmail/installer.aspx", values);
+                    var response = _httpClient.PostAsync("https://shop.umbraco.com/base/Ecom/SubmitEmail/installer.aspx", content).Result;
                 }
                 catch { /* fail in silence */ }
             }
@@ -105,17 +114,20 @@ namespace Umbraco.Web.Install.InstallSteps
 
         public override string View
         {
-            get { return RequiresExecution(null)
-                //the user UI
-                ? "user" 
-                //the continue install UI
-                : "continueinstall"; }
+            get
+            {
+                return RequiresExecution(null)
+              //the user UI
+              ? "user"
+              //the continue install UI
+              : "continueinstall";
+            }
         }
 
         public override bool RequiresExecution(UserModel model)
         {
             //now we have to check if this is really a new install, the db might be configured and might contain data
-            var databaseSettings = ConfigurationManager.ConnectionStrings[GlobalSettings.UmbracoConnectionName];
+            var databaseSettings = ConfigurationManager.ConnectionStrings[Constants.System.UmbracoConnectionName];
 
             //if there's already a version then there should def be a user but in some cases someone may have 
             // left a version number in there but cleared out their db conn string, in that case, it's really a new install.
@@ -136,6 +148,10 @@ namespace Umbraco.Web.Install.InstallSteps
             }
             else
             {
+                // In this one case when it's a brand new install and nothing has been configured, make sure the 
+                // back office cookie is cleared so there's no old cookies lying around causing problems
+                _http.ExpireCookie(UmbracoConfig.For.UmbracoSettings().Security.AuthCookieName);
+
                 return true;
             }
         }

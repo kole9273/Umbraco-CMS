@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using Umbraco.Core;
-using Umbraco.Core.Models;
 using Umbraco.Core.PropertyEditors;
 
 namespace Umbraco.Web.PropertyEditors
 {
-    [PropertyEditor(Constants.PropertyEditors.ListViewAlias, "List view", "listview", HideLabel = true)]
+    [PropertyEditor(Constants.PropertyEditors.ListViewAlias, "List view", "listview", HideLabel = true, Group = "lists", Icon = "icon-item-arrangement")]
     public class ListViewPropertyEditor : PropertyEditor
     {
         protected override PreValueEditor CreatePreValueEditor()
@@ -24,6 +19,7 @@ namespace Umbraco.Web.PropertyEditors
                 return new Dictionary<string, object>
                 {
                     {"pageSize", "10"},
+                    {"displayAtTabNumber", "1"},
                     {"orderBy", "SortOrder"},
                     {"orderDirection", "asc"},
                     {
@@ -33,6 +29,23 @@ namespace Umbraco.Web.PropertyEditors
                             new {alias = "updateDate", header = "Last edited", isSystem = 1},
                             new {alias = "owner", header = "Created by", isSystem = 1}
                         }
+                    },
+                    {
+                        "layouts", new[]
+                        {
+                            new {name = "List", path = "views/propertyeditors/listview/layouts/list/list.html", icon = "icon-list", isSystem = 1, selected = true},
+                            new {name = "Grid", path = "views/propertyeditors/listview/layouts/grid/grid.html", icon = "icon-thumbnails-small", isSystem = 1, selected = true}
+                        }
+                    },
+                    {
+                        "bulkActionPermissions", new
+                        {
+                            allowBulkPublish = true,
+                            allowBulkUnpublish = true,
+                            allowBulkCopy = true,
+                            allowBulkMove = false,
+                            allowBulkDelete = true
+                        }
                     }
                 };
             }
@@ -40,22 +53,45 @@ namespace Umbraco.Web.PropertyEditors
 
         internal class ListViewPreValueEditor : PreValueEditor
         {
+            [PreValueField("tabName", "Tab Name", "textstring", Description = "The name of the listview tab (default if empty: 'Child Items')")]
+            public string TabName { get; set; }
+
+            [PreValueField("displayAtTabNumber", "Display At Tab Number", "number", Description = "Which tab position that the list of child items will be displayed")]
+            public int DisplayAtTabNumber { get; set; }
 
             [PreValueField("pageSize", "Page Size", "number", Description = "Number of items per page")]
             public int PageSize { get; set; }
 
-            [PreValueField("orderBy", "Order By", "views/propertyeditors/listview/sortby.prevalues.html",
-                Description = "The default sort order for the list")]
-            public int OrderBy { get; set; }
+            [PreValueField("layouts", "Layouts", "views/propertyeditors/listview/layouts.prevalues.html")]
+            public object Layouts { get; set; }
 
-            [PreValueField("orderDirection", "Order Direction", "views/propertyeditors/listview/orderdirection.prevalues.html")]
-            public int OrderDirection { get; set; }
-
-            [PreValueField("includeProperties", "Columns Displayed", "views/propertyeditors/listview/includeproperties.prevalues.html", 
+            [PreValueField("includeProperties", "Columns Displayed", "views/propertyeditors/listview/includeproperties.prevalues.html",
                 Description = "The properties that will be displayed for each column")]
             public object IncludeProperties { get; set; }
+
+            [PreValueField("orderBy", "Order By", "views/propertyeditors/listview/sortby.prevalues.html",
+                Description = "The default sort order for the list")]
+            public string OrderBy { get; set; }
+
+            [PreValueField("orderDirection", "Order Direction", "views/propertyeditors/listview/orderdirection.prevalues.html")]
+            public string OrderDirection { get; set; }
+
+            [PreValueField("bulkActionPermissions", "Bulk Action Permissions", "views/propertyeditors/listview/bulkactionpermissions.prevalues.html",
+                Description = "The bulk actions that are allowed from the list view")]
+            public BulkActionPermissionSettings BulkActionPermissions { get; set; }
+
+            internal class BulkActionPermissionSettings
+            {
+                public bool AllowBulkPublish { get; set; }
+
+                public bool AllowBulkUnpublish { get; set; }
+
+                public bool AllowBulkCopy { get; set; }
+
+                public bool AllowBulkMove { get; set; }
+
+                public bool AllowBulkDelete { get; set; }                
+            }
         }
-
-
     }
 }

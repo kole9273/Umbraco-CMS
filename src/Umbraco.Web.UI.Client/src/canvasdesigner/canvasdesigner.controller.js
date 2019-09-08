@@ -7,12 +7,22 @@ var app = angular.module("Umbraco.canvasdesigner", ['colorpicker', 'ui.slider', 
 
 .controller("Umbraco.canvasdesignerController", function ($scope, $http, $window, $timeout, $location, dialogService) {
 
+    var isInit = $location.search().init;
+    if (isInit === "true") {
+        //do not continue, this is the first load of this new window, if this is passed in it means it's been
+        //initialized by the content editor and then the content editor will actually re-load this window without
+        //this flag. This is a required trick to get around chrome popup mgr. We don't want to double load preview.aspx
+        //since that will double prepare the preview documents
+        return;
+    }
+
     $scope.isOpen = false;
     $scope.frameLoaded = false;
     $scope.enableCanvasdesigner = 0;
     $scope.googleFontFamilies = {};
-    $scope.pageId = $location.search().id;
-    $scope.pageUrl = "../dialogs/Preview.aspx?id=" + $location.search().id;
+    var pageId = $location.search().id;    
+    $scope.pageId = pageId;
+    $scope.pageUrl = "../dialogs/Preview.aspx?id=" + pageId;
     $scope.valueAreLoaded = false;
     $scope.devices = [
         { name: "desktop", css: "desktop", icon: "icon-display", title: "Desktop" },
@@ -24,7 +34,7 @@ var app = angular.module("Umbraco.canvasdesigner", ['colorpicker', 'ui.slider', 
     ];
     $scope.previewDevice = $scope.devices[0];
 
-    var apiController = "/Umbraco/Api/Canvasdesigner/";
+    var apiController = "../Api/Canvasdesigner/";
 
     /*****************************************************************************/
     /* Preview devices */
@@ -40,7 +50,7 @@ var app = angular.module("Umbraco.canvasdesigner", ['colorpicker', 'ui.slider', 
     /*****************************************************************************/
 
     $scope.exitPreview = function () {
-        window.top.location.href = "/umbraco/endPreview.aspx?redir=%2f" + $scope.pageId;
+        window.top.location.href = "../endPreview.aspx?redir=%2f" + $scope.pageId;
     };
 
     /*****************************************************************************/
@@ -101,6 +111,8 @@ var app = angular.module("Umbraco.canvasdesigner", ['colorpicker', 'ui.slider', 
 
     // Load parameters from GetLessParameters and init data of the Canvasdesigner config
     $scope.initCanvasdesigner = function () {
+
+        LazyLoad.js(['https://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js']);
 
         $http.get(apiController + 'Load', { params: { pageId: $scope.pageId } })
             .success(function (data) {
@@ -419,6 +431,7 @@ var app = angular.module("Umbraco.canvasdesigner", ['colorpicker', 'ui.slider', 
 
     var webFontScriptLoaded = false;
     var loadGoogleFont = function (font) {
+
         if (!webFontScriptLoaded) {
             $.getScript('https://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js')
             .done(function () {
@@ -446,6 +459,7 @@ var app = angular.module("Umbraco.canvasdesigner", ['colorpicker', 'ui.slider', 
                 }
             });
         }
+
     };
 
     /*****************************************************************************/
@@ -453,9 +467,11 @@ var app = angular.module("Umbraco.canvasdesigner", ['colorpicker', 'ui.slider', 
     /*****************************************************************************/
 
     // Preload of the google font
-    $http.get(apiController + 'GetGoogleFont').success(function (data) {
-        $scope.googleFontFamilies = data;
-    });
+    if ($scope.showStyleEditor) {
+        $http.get(apiController + 'GetGoogleFont').success(function (data) {
+            $scope.googleFontFamilies = data;
+        });
+    }
 
     // watch framLoaded, only if iframe page have enableCanvasdesigner()
     $scope.$watch("enableCanvasdesigner", function () {

@@ -1,18 +1,29 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using Umbraco.Core;
 using Umbraco.Core.Models.PublishedContent;
 using Umbraco.Core.PropertyEditors;
+using Umbraco.Core.PropertyEditors.ValueConverters;
 using Umbraco.Web.Templates;
 
 namespace Umbraco.Web.PropertyEditors.ValueConverters
 {
+    [DefaultPropertyValueConverter]
     [PropertyValueType(typeof(string))]
     [PropertyValueCache(PropertyCacheValue.All, PropertyCacheLevel.Request)]
     public class TextStringValueConverter : PropertyValueConverterBase
     {
+        private static readonly string[] PropertyTypeAliases =
+        {
+            Constants.PropertyEditors.TextboxAlias,
+            Constants.PropertyEditors.TextboxMultipleAlias
+        };
+
         public override bool IsConverter(PublishedPropertyType propertyType)
         {
-            return Constants.PropertyEditors.TextboxAlias.Equals(propertyType.PropertyEditorAlias);
+            return PropertyTypeAliases.Contains(propertyType.PropertyEditorAlias);
         }
 
         public override object ConvertDataToSource(PublishedPropertyType propertyType, object source, bool preview)

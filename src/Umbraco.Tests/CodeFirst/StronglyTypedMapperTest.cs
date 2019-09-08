@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
@@ -82,9 +83,9 @@ namespace Umbraco.Tests.CodeFirst
                     new PublishedPropertyType("articleDate", 0, "?"), 
                     new PublishedPropertyType("pageTitle", 0, "?"), 
                 };
-            var type = new AutoPublishedContentType(0, "anything", propertyTypes);
+            var type = new AutoPublishedContentType(0, "anything", "anything", "anything", propertyTypes);
             PublishedContentType.GetPublishedContentTypeCallback = (alias) => type;
-            Console.WriteLine("INIT STRONG {0}",
+            Debug.Print("INIT STRONG {0}",
                 PublishedContentType.Get(PublishedItemType.Content, "anything")
                     .PropertyTypes.Count());
         }

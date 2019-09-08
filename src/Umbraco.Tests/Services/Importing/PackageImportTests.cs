@@ -75,6 +75,31 @@ namespace Umbraco.Tests.Services.Importing
         }
 
         [Test]
+        public void PackagingService_Can_Import_Inherited_ContentTypes_And_Verify_PropertyTypes_UniqueIds()
+        {
+            // Arrange
+            var strXml = ImportResources.InheritedDocTypes_Package;
+            var xml = XElement.Parse(strXml);
+            var dataTypeElement = xml.Descendants("DataTypes").First();
+            var templateElement = xml.Descendants("Templates").First();
+            var docTypeElement = xml.Descendants("DocumentTypes").First();
+            var packagingService = ServiceContext.PackagingService;
+
+            // Act
+            var dataTypes = packagingService.ImportDataTypeDefinitions(dataTypeElement);
+            var templates = packagingService.ImportTemplates(templateElement);
+            var contentTypes = packagingService.ImportContentTypes(docTypeElement);
+
+            // Assert
+            var mRBasePage = contentTypes.First(x => x.Alias == "MRBasePage");
+            foreach (var propertyType in mRBasePage.PropertyTypes)
+            {
+                var propertyTypeDto = this.DatabaseContext.Database.First<PropertyTypeDto>("WHERE id = @id", new { id = propertyType.Id });
+                Assert.AreEqual(propertyTypeDto.UniqueId, propertyType.Key);
+            }
+        }
+
+        [Test]
         public void PackagingService_Can_Import_Inherited_ContentTypes_And_Verify_PropertyGroups_And_PropertyTypes()
         {
             // Arrange
@@ -261,7 +286,7 @@ namespace Umbraco.Tests.Services.Importing
             Assert.That(contents.Any(), Is.True);
             Assert.That(contents.Count(), Is.EqualTo(numberOfDocs));
         }
-        
+
         [Test]
         public void PackagingService_Can_Import_CheckboxList_Content_Package_Xml_With_Property_Editor_Aliases()
         {
@@ -406,7 +431,7 @@ namespace Umbraco.Tests.Services.Importing
             var templates = packagingService.ImportTemplates(templateElement);
             var templatesAfterUpdate = packagingService.ImportTemplates(templateElementUpdated);
             var allTemplates = fileService.GetTemplates();
-            
+
             // Assert
             Assert.That(templates.Any(), Is.True);
             Assert.That(templates.Count(), Is.EqualTo(numberOfTemplates));
@@ -460,7 +485,7 @@ namespace Umbraco.Tests.Services.Importing
 
             var parentDictionaryItem = ServiceContext.LocalizationService.GetDictionaryItemByKey(parentKey);
             var childDictionaryItem = ServiceContext.LocalizationService.GetDictionaryItemByKey(childKey);
-            
+
             Assert.That(parentDictionaryItem.ParentId, Is.Not.EqualTo(childDictionaryItem.ParentId));
             Assert.That(childDictionaryItem.ParentId, Is.EqualTo(parentDictionaryItem.Key));
         }

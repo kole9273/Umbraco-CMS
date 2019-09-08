@@ -36,9 +36,8 @@ namespace umbraco.cms.businesslogic.language
         #region Constants and static members
         
         /// <summary>
-        /// Gets the SQL helper.
+        /// Unused, please do not use
         /// </summary>
-        /// <value>The SQL helper.</value>
         [Obsolete("Obsolete, For querying the database use the new UmbracoDatabase object ApplicationContext.Current.DatabaseContext.Database", false)]
         protected static ISqlHelper SqlHelper
         {
@@ -86,6 +85,10 @@ namespace umbraco.cms.businesslogic.language
             var culture = GetCulture(cultureCode);
             if (culture != null)
             {
+                // check if language exists already
+                var existingLanguage = GetByCultureCode(culture.Name);
+                if (existingLanguage != null) return;
+
                 //insert it
                 var lang = new Umbraco.Core.Models.Language(cultureCode)
                 {

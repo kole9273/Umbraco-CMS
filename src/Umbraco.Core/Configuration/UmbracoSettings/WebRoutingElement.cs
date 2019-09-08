@@ -1,4 +1,5 @@
-﻿using System.Configuration;
+﻿using System;
+using System.Configuration;
 
 namespace Umbraco.Core.Configuration.UmbracoSettings
 {
@@ -21,10 +22,23 @@ namespace Umbraco.Core.Configuration.UmbracoSettings
         {
             get { return (bool) base["disableAlternativeTemplates"]; }
         }
+
+        [ConfigurationProperty("validateAlternativeTemplates", DefaultValue = "false")]
+        public bool ValidateAlternativeTemplates
+        {
+            get { return (bool)base["validateAlternativeTemplates"]; }
+        }
+
         [ConfigurationProperty("disableFindContentByIdPath", DefaultValue = "false")]
         public bool DisableFindContentByIdPath
         {
             get { return (bool) base["disableFindContentByIdPath"]; }
+        }
+
+        [ConfigurationProperty("disableRedirectUrlTracking", DefaultValue = "false")]
+        public bool DisableRedirectUrlTracking
+        {
+            get { return (bool) base["disableRedirectUrlTracking"]; }
         }
 
         [ConfigurationProperty("urlProviderMode", DefaultValue = "AutoLegacy")]
