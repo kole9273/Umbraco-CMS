@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Web;
 using AutoMapper;
@@ -27,15 +29,17 @@ using Umbraco.Core.PropertyEditors.ValueConverters;
 using Umbraco.Core.Publishing;
 using Umbraco.Core.Macros;
 using Umbraco.Core.Manifest;
+using Umbraco.Core.Scoping;
 using Umbraco.Core.Services;
 using Umbraco.Core.Sync;
 using Umbraco.Core.Strings;
+using IntegerValidator = Umbraco.Core.PropertyEditors.IntegerValidator;
 using MigrationsVersionFourNineZero = Umbraco.Core.Persistence.Migrations.Upgrades.TargetVersionFourNineZero;
 
 namespace Umbraco.Core
 {
     /// <summary>
-    /// A bootstrapper for the Umbraco application which initializes all objects for the Core of the application 
+    /// A bootstrapper for the Umbraco application which initializes all objects for the Core of the application
     /// </summary>
     /// <remarks>
     /// This does not provide any startup functionality relating to web objects
@@ -103,11 +107,14 @@ namespace Umbraco.Core
             LegacyParameterEditorAliasConverter.CreateMappingsForCoreEditors();
 
             //create database and service contexts for the app context
-            var dbFactory = new DefaultDatabaseFactory(GlobalSettings.UmbracoConnectionName, ProfilingLogger.Logger);
+            var dbFactory = new DefaultDatabaseFactory(Constants.System.UmbracoConnectionName, ProfilingLogger.Logger);
             Database.Mapper = new PetaPocoMapper();
 
+            var scopeProvider = new ScopeProvider(dbFactory);
+            dbFactory.ScopeProvider = scopeProvider;
+
             var dbContext = new DatabaseContext(
-                dbFactory,
+                scopeProvider,
                 ProfilingLogger.Logger,
                 SqlSyntaxProviders.CreateDefault(ProfilingLogger.Logger));
 
@@ -115,7 +122,7 @@ namespace Umbraco.Core
             dbContext.Initialize();
 
             //get the service context
-            var serviceContext = CreateServiceContext(dbContext, dbFactory);
+            var serviceContext = CreateServiceContext(dbContext, scopeProvider);
 
             //set property and singleton from response
             ApplicationContext.Current = ApplicationContext = CreateApplicationContext(dbContext, serviceContext);
@@ -136,7 +143,10 @@ namespace Umbraco.Core
                     {
                         try
                         {
-                            x.OnApplicationInitialized(UmbracoApplication, ApplicationContext);
+                            using (ProfilingLogger.DebugDuration<CoreBootManager>(string.Format("Executing {0} in ApplicationInitialized", x.GetType())))
+                            {
+                                x.OnApplicationInitialized(UmbracoApplication, ApplicationContext);
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -155,17 +165,15 @@ namespace Umbraco.Core
         /// Creates and returns the service context for the app
         /// </summary>
         /// <param name="dbContext"></param>
-        /// <param name="dbFactory"></param>
+        /// <param name="scopeProvider"></param>
         /// <returns></returns>
-        protected virtual ServiceContext CreateServiceContext(DatabaseContext dbContext, IDatabaseFactory dbFactory)
+        protected virtual ServiceContext CreateServiceContext(DatabaseContext dbContext, IScopeProvider scopeProvider)
         {
             //default transient factory
             var msgFactory = new TransientMessagesFactory();
             return new ServiceContext(
                 new RepositoryFactory(ApplicationCache, ProfilingLogger.Logger, dbContext.SqlSyntax, UmbracoConfig.For.UmbracoSettings()),
-                new PetaPocoUnitOfWorkProvider(dbFactory),
-                new FileUnitOfWorkProvider(),
-                new PublishingStrategy(msgFactory, ProfilingLogger.Logger),
+                new PetaPocoUnitOfWorkProvider(scopeProvider),
                 ApplicationCache,
                 ProfilingLogger.Logger,
                 msgFactory);
@@ -188,10 +196,16 @@ namespace Umbraco.Core
         protected virtual CacheHelper CreateApplicationCache()
         {
             var cacheHelper = new CacheHelper(
-                new ObjectCacheRuntimeCacheProvider(),
+                //we need to have the dep clone runtime cache provider to ensure
+                //all entities are cached properly (cloned in and cloned out)
+                new DeepCloneRuntimeCacheProvider(new ObjectCacheRuntimeCacheProvider()),
                 new StaticCacheProvider(),
                 //we have no request based cache when not running in web-based context
-                new NullCacheProvider());
+                new NullCacheProvider(),
+                new IsolatedRuntimeCache(type =>
+                    //we need to have the dep clone runtime cache provider to ensure
+                    //all entities are cached properly (cloned in and cloned out)
+                    new DeepCloneRuntimeCacheProvider(new ObjectCacheRuntimeCacheProvider())));
 
             return cacheHelper;
         }
@@ -242,18 +256,18 @@ namespace Umbraco.Core
         }
 
         /// <summary>
-        /// Special method to initialize the ApplicationEventsResolver and any modifications required for it such 
+        /// Special method to initialize the ApplicationEventsResolver and any modifications required for it such
         /// as adding custom types to the resolver.
         /// </summary>
         protected virtual void InitializeApplicationEventsResolver()
         {
             //find and initialize the application startup handlers, we need to initialize this resolver here because
-            //it is a special resolver where they need to be instantiated first before any other resolvers in order to bind to 
+            //it is a special resolver where they need to be instantiated first before any other resolvers in order to bind to
             //events and to call their events during bootup.
             //ApplicationStartupHandler.RegisterHandlers();
             //... and set the special flag to let us resolve before frozen resolution
             ApplicationEventsResolver.Current = new ApplicationEventsResolver(
-                ServiceProvider, 
+                ServiceProvider,
                 ProfilingLogger.Logger,
                 PluginManager.ResolveApplicationStartupHandlers())
             {
@@ -273,7 +287,7 @@ namespace Umbraco.Core
         }
 
         /// <summary>
-        /// Fires after initialization and calls the callback to allow for customizations to occur & 
+        /// Fires after initialization and calls the callback to allow for customizations to occur &
         /// Ensure that the OnApplicationStarting methods of the IApplicationEvents are called
         /// </summary>
         /// <param name="afterStartup"></param>
@@ -293,7 +307,10 @@ namespace Umbraco.Core
 		            {
 		                try
 		                {
-		                    x.OnApplicationStarting(UmbracoApplication, ApplicationContext);
+		                    using (ProfilingLogger.DebugDuration<CoreBootManager>(string.Format("Executing {0} in ApplicationStarting", x.GetType())))
+		                    {
+		                        x.OnApplicationStarting(UmbracoApplication, ApplicationContext);
+		                    }
 		                }
 		                catch (Exception ex)
 		                {
@@ -322,7 +339,7 @@ namespace Umbraco.Core
         {
             if (_isComplete)
                 throw new InvalidOperationException("The boot manager has already been completed");
-            
+
             FreezeResolution();
 
             //Here we need to make sure the db can be connected to
@@ -344,14 +361,17 @@ namespace Umbraco.Core
                     {
                         try
                         {
-                            x.OnApplicationStarted(UmbracoApplication, ApplicationContext);
+                            using (ProfilingLogger.DebugDuration<CoreBootManager>(string.Format("Executing {0} in ApplicationStarted", x.GetType())))
+                            {
+                                x.OnApplicationStarted(UmbracoApplication, ApplicationContext);
+                            }
                         }
                         catch (Exception ex)
                         {
                             ProfilingLogger.Logger.Error<CoreBootManager>("An error occurred running OnApplicationStarted for handler " + x.GetType(), ex);
                             throw;
                         }
-                    }); 
+                    });
             }
 
             //Now, startup all of our legacy startup handler
@@ -380,6 +400,28 @@ namespace Umbraco.Core
             if (ApplicationContext.IsConfigured == false) return;
             if (ApplicationContext.DatabaseContext.IsDatabaseConfigured == false) return;
 
+            // deal with localdb
+            var databaseContext = ApplicationContext.DatabaseContext;
+            var localdbex = new Regex(@"\(localdb\)\\([a-zA-Z0-9-_]+)(;|$)");
+            var m = localdbex.Match(databaseContext.ConnectionString);
+            if (m.Success)
+            {
+                var instanceName = m.Groups[1].Value;
+                ProfilingLogger.Logger.Info<CoreBootManager>(string.Format("LocalDb instance \"{0}\"", instanceName));
+
+                var localDb = new LocalDb();
+                if (localDb.IsAvailable == false)
+                    throw new UmbracoStartupFailedException("Umbraco cannot start. LocalDb is not available.");
+
+                if (localDb.InstanceExists(m.Groups[1].Value) == false)
+                {
+                    if (localDb.CreateInstance(instanceName) == false)
+                        throw new UmbracoStartupFailedException(string.Format("Umbraco cannot start. LocalDb cannot create instance \"{0}\".", instanceName));
+                    if (localDb.StartInstance(instanceName) == false)
+                        throw new UmbracoStartupFailedException(string.Format("Umbraco cannot start. LocalDb cannot start instance \"{0}\".", instanceName));
+                }
+            }
+
             //try now
             if (ApplicationContext.DatabaseContext.CanConnect)
                 return;
@@ -398,7 +440,7 @@ namespace Umbraco.Core
 
             if (currentTry == 5)
             {
-                throw new UmbracoStartupFailedException("Umbraco cannot start. A connection string is configured but the Umbraco cannot connect to the database.");
+                throw new UmbracoStartupFailedException("Umbraco cannot start. A connection string is configured but Umbraco cannot connect to the database.");
             }
         }
 
@@ -431,6 +473,7 @@ namespace Umbraco.Core
                     new Lazy<Type>(() => typeof (DelimitedManifestValueValidator)),
                     new Lazy<Type>(() => typeof (EmailValidator)),
                     new Lazy<Type>(() => typeof (IntegerValidator)),
+                    new Lazy<Type>(() => typeof (DecimalValidator)),
                 });
 
             //by default we'll use the db server registrar unless the developer has the legacy
@@ -439,6 +482,10 @@ namespace Umbraco.Core
             {
                 ServerRegistrarResolver.Current = new ServerRegistrarResolver(new ConfigServerRegistrar());
             }
+            else if ("true".InvariantEquals(ConfigurationManager.AppSettings["umbracoDisableElectionForSingleServer"]))
+            {
+                ServerRegistrarResolver.Current = new ServerRegistrarResolver(new SingleServerRegistrar());
+            }
             else
             {
                 ServerRegistrarResolver.Current = new ServerRegistrarResolver(
@@ -446,7 +493,6 @@ namespace Umbraco.Core
                         new Lazy<IServerRegistrationService>(() => ApplicationContext.Services.ServerRegistrationService),
                         new DatabaseServerRegistrarOptions()));
             }
-            
 
             //by default we'll use the database server messenger with default options (no callbacks),
             // this will be overridden in the web startup
@@ -457,7 +503,7 @@ namespace Umbraco.Core
                 ServiceProvider, ProfilingLogger.Logger,
                 () => PluginManager.ResolveAssignedMapperTypes());
 
-           
+
             //RepositoryResolver.Current = new RepositoryResolver(
             //    new RepositoryFactory(ApplicationCache));
 

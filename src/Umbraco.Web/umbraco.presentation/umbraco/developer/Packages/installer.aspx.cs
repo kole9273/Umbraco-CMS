@@ -26,7 +26,8 @@ namespace umbraco.presentation.developer.packages
     /// <summary>
     /// Summary description for packager.
     /// </summary>
-    public partial class Installer : UmbracoEnsuredPage
+    [Obsolete("This should not be used and will be removed in v8, this is kept here only for backwards compat reasons, this page should never be rendered/used")]
+    public class Installer : UmbracoEnsuredPage
     {
         public Installer()
         {
@@ -133,7 +134,7 @@ namespace umbraco.presentation.developer.packages
         protected void fetchProtectedPackage(object sender, EventArgs e)
         {
             //we auth against the webservice. This key will be used to fetch the protected package.
-            string memberGuid = _repo.Webservice.authenticate(tb_email.Text, library.md5(tb_password.Text));
+            string memberGuid = _repo.Webservice.authenticate(tb_email.Text, library.CreateHash(tb_password.Text));
 
             //if we auth correctly and get a valid key back, we will fetch the file from the repo webservice.
             if (string.IsNullOrEmpty(memberGuid) == false)
@@ -275,6 +276,9 @@ namespace umbraco.presentation.developer.packages
                 case "finished":
                     PerformFinishedAction(packageId, dir, Request.GetItemAsString("customUrl"));
                     break;
+                case "uninstalled":
+                    PerformUninstalledAction();
+                    break;
                 default:
                     break;
             }
@@ -301,6 +305,13 @@ namespace umbraco.presentation.developer.packages
             pane_success.Visible = true;
 
             PerformPostInstallCleanup(packageId, dir);
+        }
+
+        private void PerformUninstalledAction()
+        {
+            HideAllPanes();
+            Panel1.Text = "Package has been uninstalled";
+            pane_uninstalled.Visible = true;
         }
 
         /// <summary>
@@ -743,6 +754,9 @@ namespace umbraco.presentation.developer.packages
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::umbraco.uicontrols.Pane pane_installing;
+
+        protected global::umbraco.uicontrols.Pane pane_uninstalled;
+
 
         /// <summary>
         /// progBar2 control.

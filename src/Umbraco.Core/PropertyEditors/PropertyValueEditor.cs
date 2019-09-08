@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Xml.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Umbraco.Core.Logging;
 using Umbraco.Core.Manifest;
 using Umbraco.Core.Models;
@@ -25,7 +25,7 @@ namespace Umbraco.Core.PropertyEditors
         /// </summary>
         public PropertyValueEditor()
         {
-            ValueType = "string";
+            ValueType = PropertyEditorValueTypes.String;
             //set a default for validators
             Validators = new List<IPropertyValidator>();
         }
@@ -123,28 +123,35 @@ namespace Umbraco.Core.PropertyEditors
         }
 
         /// <summary>
-        /// Returns the true DataTypeDatabaseType from the string representation ValueType
+        /// Returns the true DataTypeDatabaseType from the string representation ValueType.
         /// </summary>
         /// <returns></returns>
         public DataTypeDatabaseType GetDatabaseType()
         {
-            switch (ValueType.ToUpper(CultureInfo.InvariantCulture))
+            return GetDatabaseType(ValueType);
+        }
+
+        public static DataTypeDatabaseType GetDatabaseType(string valueType)
+        {
+            switch (valueType.ToUpperInvariant())
             {
-                case "INT":
-                case "INTEGER":
+                case PropertyEditorValueTypes.Integer:
+                case PropertyEditorValueTypes.IntegerAlternative:
                     return DataTypeDatabaseType.Integer;
-                case "STRING":
+                case PropertyEditorValueTypes.Decimal:
+                    return DataTypeDatabaseType.Decimal;
+                case PropertyEditorValueTypes.String:
                     return DataTypeDatabaseType.Nvarchar;
-                case "TEXT":
-                case "JSON":
-                case "XML":
+                case PropertyEditorValueTypes.Text:
+                case PropertyEditorValueTypes.Json:
+                case PropertyEditorValueTypes.Xml:
                     return DataTypeDatabaseType.Ntext;
-                case "DATETIME":
-                case "DATE":
-                case "TIME":
+                case PropertyEditorValueTypes.DateTime:
+                case PropertyEditorValueTypes.Date:
+                case PropertyEditorValueTypes.Time:
                     return DataTypeDatabaseType.Date;
                 default:
-                    throw new FormatException("The ValueType does not match a known value type");
+                    throw new ArgumentException("Not a valid value type.", "valueType");
             }
         }
 
@@ -169,6 +176,12 @@ namespace Umbraco.Core.PropertyEditors
         /// <returns></returns>
         internal Attempt<object> TryConvertValueToCrlType(object value)
         {
+            var jv = value as JValue;
+            if (jv != null)
+            {
+                value = value.ToString();
+            }
+
             //this is a custom check to avoid any errors, if it's a string and it's empty just make it null
             var s = value as string;
             if (s != null)
@@ -202,6 +215,11 @@ namespace Umbraco.Core.PropertyEditors
                         ? Attempt<object>.Succeed((int)(long)result.Result) 
                         : result;
 
+                case DataTypeDatabaseType.Decimal:
+                    //ensure these are nullable so we can return a null if required
+                    valueType = typeof(decimal?);
+                    break;
+
                 case DataTypeDatabaseType.Date:
                     //ensure these are nullable so we can return a null if required
                     valueType = typeof(DateTime?);
@@ -231,7 +249,7 @@ namespace Umbraco.Core.PropertyEditors
         public virtual object ConvertEditorToDb(ContentPropertyData editorValue, object currentValue)
         {
             //if it's json but it's empty json, then return null
-            if (ValueType.InvariantEquals("JSON") && editorValue.Value != null && editorValue.Value.ToString().DetectIsEmptyJson())
+            if (ValueType.InvariantEquals(PropertyEditorValueTypes.Json) && editorValue.Value != null && editorValue.Value.ToString().DetectIsEmptyJson())
             {
                 return null;
             }
@@ -281,10 +299,15 @@ namespace Umbraco.Core.PropertyEditors
                             //swallow this exception, we thought it was json but it really isn't so continue returning a string
                         }
                     }
-                    return property.Value.ToString();
+                    return asString;
                 case DataTypeDatabaseType.Integer:
-                    //we can just ToString() any of these types
-                    return property.Value.ToString();
+                case DataTypeDatabaseType.Decimal:
+                    //Decimals need to be formatted with invariant culture (dots, not commas)
+                    //Anything else falls back to ToString()
+                    var decim = property.Value.TryConvertTo<decimal>();
+                    return decim.Success 
+                        ? decim.Result.ToString(NumberFormatInfo.InvariantInfo) 
+                        : property.Value.ToString();
                 case DataTypeDatabaseType.Date:
                     var date = property.Value.TryConvertTo<DateTime?>();
                     if (date.Success == false || date.Result == null)
@@ -325,6 +348,7 @@ namespace Umbraco.Core.PropertyEditors
             {
                 case DataTypeDatabaseType.Date:
                 case DataTypeDatabaseType.Integer:
+                case DataTypeDatabaseType.Decimal:
                     return new XText(ConvertDbToString(property, propertyType, dataTypeService));                    
                 case DataTypeDatabaseType.Nvarchar:
                 case DataTypeDatabaseType.Ntext:
@@ -354,6 +378,7 @@ namespace Umbraco.Core.PropertyEditors
                     property.Value.ToXmlString<string>();
                     return property.Value.ToXmlString<string>();
                 case DataTypeDatabaseType.Integer:
+                case DataTypeDatabaseType.Decimal:
                     return property.Value.ToXmlString(property.Value.GetType());                
                 case DataTypeDatabaseType.Date:
                     //treat dates differently, output the format as xml format

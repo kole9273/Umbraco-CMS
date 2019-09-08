@@ -42,24 +42,6 @@ namespace Umbraco.Core.Persistence.Repositories
         int GetCountByQuery(IQuery<IMember> query);
 
         /// <summary>
-        /// Gets paged member results
-        /// </summary>
-        /// <param name="query"></param>
-        /// <param name="pageIndex"></param>
-        /// <param name="pageSize"></param>
-        /// <param name="totalRecords"></param>
-        /// <param name="orderBy"></param>
-        /// <param name="orderDirection"></param>
-        /// <param name="filter"></param>
-        /// <returns></returns>
-        IEnumerable<IMember> GetPagedResultsByQuery(IQuery<IMember> query, long pageIndex, int pageSize, out long totalRecords,
-            string orderBy, Direction orderDirection, string filter = "");
-
-        //IEnumerable<IMember> GetPagedResultsByQuery<TDto>(
-        //    Sql sql, int pageIndex, int pageSize, out int totalRecords,
-        //    Func<IEnumerable<TDto>, int[]> resolveIds);
-
-        /// <summary>
         /// Used to add/update published xml for the media item
         /// </summary>
         /// <param name="content"></param>
@@ -72,6 +54,6 @@ namespace Umbraco.Core.Persistence.Repositories
         /// <param name="content"></param>
         /// <param name="xml"></param>
         void AddOrUpdatePreviewXml(IMember content, Func<IMember, XElement> xml);
-
+        
     }
 }

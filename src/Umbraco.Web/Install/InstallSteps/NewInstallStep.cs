@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
+using System.Web;
 using System.Web.Security;
 using Umbraco.Core;
 using Umbraco.Core.Configuration;
@@ -22,13 +23,16 @@ namespace Umbraco.Web.Install.InstallSteps
         "User", 20, "")]
     internal class NewInstallStep : InstallSetupStep<UserModel>
     {
+        private readonly HttpContextBase _http;
         private readonly ApplicationContext _applicationContext;
 
-        public NewInstallStep(ApplicationContext applicationContext)
+        public NewInstallStep(HttpContextBase http, ApplicationContext applicationContext)
         {
+            _http = http;
             _applicationContext = applicationContext;
         }
 
+        //TODO: Change all logic in this step to use ASP.NET Identity NOT MembershipProviders
         private MembershipProvider CurrentProvider
         {
             get
@@ -78,7 +82,7 @@ namespace Umbraco.Web.Install.InstallSteps
                 {
                     var client = new System.Net.WebClient();
                     var values = new NameValueCollection { { "name", admin.Name }, { "email", admin.Email} };
-                    client.UploadValues("http://umbraco.org/base/Ecom/SubmitEmail/installer.aspx", values);
+                    client.UploadValues("https://shop.umbraco.com/base/Ecom/SubmitEmail/installer.aspx", values);
                 }
                 catch { /* fail in silence */ }
             }
@@ -111,11 +115,11 @@ namespace Umbraco.Web.Install.InstallSteps
                 //the continue install UI
                 : "continueinstall"; }
         }
-
+        
         public override bool RequiresExecution(UserModel model)
         {
             //now we have to check if this is really a new install, the db might be configured and might contain data
-            var databaseSettings = ConfigurationManager.ConnectionStrings[GlobalSettings.UmbracoConnectionName];
+            var databaseSettings = ConfigurationManager.ConnectionStrings[Constants.System.UmbracoConnectionName];
 
             //if there's already a version then there should def be a user but in some cases someone may have 
             // left a version number in there but cleared out their db conn string, in that case, it's really a new install.
@@ -136,6 +140,10 @@ namespace Umbraco.Web.Install.InstallSteps
             }
             else
             {
+                // In this one case when it's a brand new install and nothing has been configured, make sure the 
+                // back office cookie is cleared so there's no old cookies lying around causing problems
+                _http.ExpireCookie(UmbracoConfig.For.UmbracoSettings().Security.AuthCookieName);
+
                 return true;
             }
         }

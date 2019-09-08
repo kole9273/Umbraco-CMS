@@ -46,7 +46,7 @@ namespace Umbraco.Web.Models
         {
             var route = umbracoContext == null
                 ? null // for tests only
-                : umbracoContext.ContentCache.GetRouteById(contentId); // cached
+                : umbracoContext.ContentCache.GetRouteById(contentId); // may be cached
 
             var domainHelper = new DomainHelper(domainService);
             IDomain domain;
@@ -71,23 +71,21 @@ namespace Umbraco.Web.Models
             }
             else
             {
-                // if content is published then we have a (cached) route
+                // if content is published then we have a route
                 // from which we can figure out the domain
 
                 var pos = route.IndexOf('/');
                 domain = pos == 0
                     ? null
                     : domainHelper.DomainForNode(int.Parse(route.Substring(0, pos)), current).UmbracoDomain;
-              }
+            }
 
-            if (domain == null || domain.LanguageIsoCode.IsNullOrWhiteSpace())
-                return GetDefaultCulture(localizationService);
+            var rootContentId = domain == null ? -1 : domain.RootContentId;
+            var wcDomain = DomainHelper.FindWildcardDomainInPath(domainService.GetAll(true), contentPath, rootContentId);
 
-            var wcDomain = DomainHelper.FindWildcardDomainInPath(domainService.GetAll(true), contentPath, domain.RootContentId);
-
-            return wcDomain == null
-                ? new CultureInfo(domain.LanguageIsoCode)
-                : new CultureInfo(wcDomain.LanguageIsoCode);
+            if (wcDomain != null) return new CultureInfo(wcDomain.LanguageIsoCode);
+            if (domain != null) return new CultureInfo(domain.LanguageIsoCode);
+            return GetDefaultCulture(localizationService);
         }
 
         private static CultureInfo GetDefaultCulture(ILocalizationService localizationService)

@@ -10,7 +10,7 @@ using Umbraco.Core.IO;
 
 namespace Umbraco.Web.Media.ThumbnailProviders
 {
-	[WeightedPlugin(1000)]
+	[Weight(1000)]
     public class ImageThumbnailProvider : AbstractThumbnailProvider
     {        
         protected override IEnumerable<string> SupportedExtensions
@@ -33,7 +33,7 @@ namespace Umbraco.Web.Media.ThumbnailProviders
                 return false;
 
             // Make sure the thumbnail exists
-            var tmpThumbUrl = fileUrl.Replace(ext, "_thumb.jpg");
+            var tmpThumbUrl = fileUrl.Replace(ext, "_thumb" + ext);
 
             try
             {

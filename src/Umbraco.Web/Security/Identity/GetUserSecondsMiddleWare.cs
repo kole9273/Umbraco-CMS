@@ -2,12 +2,15 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Tasks;
+using System.Web;
+using System.Web.Security;
 using Microsoft.Owin;
 using Microsoft.Owin.Logging;
 using Microsoft.Owin.Security.Cookies;
 using Umbraco.Core;
 using Umbraco.Core.Configuration;
 using Umbraco.Core.Configuration.UmbracoSettings;
+using Umbraco.Core.Security;
 
 namespace Umbraco.Web.Security.Identity
 {
@@ -43,14 +46,10 @@ namespace Umbraco.Web.Security.Identity
         {
             var request = context.Request;
             var response = context.Response;
-
-            var rootPath = context.Request.PathBase.HasValue
-                ? context.Request.PathBase.Value.EnsureStartsWith("/").EnsureEndsWith("/")
-                : "/";
-
+            
             if (request.Uri.Scheme.InvariantStartsWith("http")
                 && request.Uri.AbsolutePath.InvariantEquals(
-                    string.Format("{0}{1}/backoffice/UmbracoApi/Authentication/GetRemainingTimeoutSeconds", rootPath, GlobalSettings.UmbracoMvcArea)))
+                    string.Format("{0}/backoffice/UmbracoApi/Authentication/GetRemainingTimeoutSeconds", GlobalSettings.Path)))
             {
                 var cookie = _authOptions.CookieManager.GetRequestCookie(context, _security.AuthCookieName);
                 if (cookie.IsNullOrWhiteSpace() == false)
@@ -59,7 +58,7 @@ namespace Umbraco.Web.Security.Identity
                     if (ticket != null)
                     {
                         var remainingSeconds = ticket.Properties.ExpiresUtc.HasValue
-                            ? (ticket.Properties.ExpiresUtc.Value - DateTime.Now.ToUniversalTime()).TotalSeconds
+                            ? (ticket.Properties.ExpiresUtc.Value - _authOptions.SystemClock.UtcNow).TotalSeconds
                             : 0;
 
                         response.ContentType = "application/json; charset=utf-8";
@@ -67,44 +66,56 @@ namespace Umbraco.Web.Security.Identity
                         response.Headers.Add("Cache-Control", new[] { "no-cache" });
                         response.Headers.Add("Pragma", new[] { "no-cache" });
                         response.Headers.Add("Expires", new[] { "-1" });
-                        response.Headers.Add("Date", new[] { DateTime.Now.ToUniversalTime().ToString("R") });
+                        response.Headers.Add("Date", new[] { _authOptions.SystemClock.UtcNow.ToString("R") });
 
                         //Ok, so here we need to check if we want to process/renew the auth ticket for each 
                         // of these requests. If that is the case, the user will really never be logged out until they
                         // close their browser (there will be edge cases of that, especially when debugging)
                         if (_security.KeepUserLoggedIn)
                         {
-                            var utcNow = DateTime.Now.ToUniversalTime();
-                            ticket.Properties.IssuedUtc = utcNow;
-                            ticket.Properties.ExpiresUtc = utcNow.AddMinutes(_authOptions.LoginTimeoutMinutes);
+                            var currentUtc = _authOptions.SystemClock.UtcNow;
+                            var issuedUtc = ticket.Properties.IssuedUtc;
+                            var expiresUtc = ticket.Properties.ExpiresUtc;
 
-                            var cookieValue = _authOptions.TicketDataFormat.Protect(ticket);
-
-                            var cookieOptions = new CookieOptions
+                            if (expiresUtc.HasValue && issuedUtc.HasValue)
                             {
-                                Path = "/",
-                                Domain = _authOptions.CookieDomain,
-                                Expires = DateTime.Now.AddMinutes(_authOptions.LoginTimeoutMinutes),
-                                HttpOnly = true,
-                                Secure = _authOptions.CookieSecure == CookieSecureOption.Always
-                                         || (_authOptions.CookieSecure == CookieSecureOption.SameAsRequest && request.Uri.Scheme.InvariantEquals("https")),
-                            };
+                                var timeElapsed = currentUtc.Subtract(issuedUtc.Value);
+                                var timeRemaining = expiresUtc.Value.Subtract(currentUtc);
 
-                            _authOptions.CookieManager.AppendResponseCookie(
-                                context,
-                                _authOptions.CookieName,
-                                cookieValue,
-                                cookieOptions);
+                                //if it's time to renew, then do it
+                                if (timeRemaining < timeElapsed)
+                                {
+                                    //TODO: This would probably be simpler just to do: context.OwinContext.Authentication.SignIn(context.Properties, identity);
+                                    // this will invoke the default Cookie middleware to basically perform this logic for us.
 
-                            remainingSeconds = (ticket.Properties.ExpiresUtc.Value - DateTime.Now.ToUniversalTime()).TotalSeconds;
+                                    ticket.Properties.IssuedUtc = currentUtc;
+                                    var timeSpan = expiresUtc.Value.Subtract(issuedUtc.Value);
+                                    ticket.Properties.ExpiresUtc = currentUtc.Add(timeSpan);
+
+                                    var cookieValue = _authOptions.TicketDataFormat.Protect(ticket);
+
+                                    var cookieOptions = _authOptions.CreateRequestCookieOptions(context, ticket);
+
+                                    _authOptions.CookieManager.AppendResponseCookie(
+                                        context,
+                                        _authOptions.CookieName,
+                                        cookieValue,
+                                        cookieOptions);
+
+                                    remainingSeconds = (ticket.Properties.ExpiresUtc.Value - currentUtc).TotalSeconds;
+                                }
+                            }
+
+                            //We also need to re-validate the user's session if we are relying on this ping to keep their session alive
+                            await SessionIdValidator.ValidateSessionAsync(TimeSpan.FromMinutes(1), context, _authOptions.CookieManager, _authOptions.SystemClock, issuedUtc, ticket.Identity);
                         }
-                        else if (remainingSeconds <=30) 
+                        else if (remainingSeconds <= 30)
                         {
                             //NOTE: We are using 30 seconds because that is what is coded into angular to force logout to give some headway in
                             // the timeout process.
 
                             _logger.WriteCore(TraceEventType.Information, 0,
-                                string.Format("User logged will be logged out due to timeout: {0}, IP Address: {1}", ticket.Identity.Name, request.RemoteIpAddress), 
+                                string.Format("User logged will be logged out due to timeout: {0}, IP Address: {1}", ticket.Identity.Name, request.RemoteIpAddress),
                                 null, null);
                         }
 
@@ -112,6 +123,13 @@ namespace Umbraco.Web.Security.Identity
                         return;
                     }
                 }
+
+                //Hack! we need to suppress the stupid forms authentcation module but we can only do that by using non owin stuff
+                if (HttpContext.Current != null && HttpContext.Current.Response != null)
+                {
+                    HttpContext.Current.Response.SuppressFormsAuthenticationRedirect = true;
+                }
+
                 response.StatusCode = 401;
             }
             else if (Next != null)

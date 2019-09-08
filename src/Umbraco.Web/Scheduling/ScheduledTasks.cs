@@ -63,6 +63,10 @@ namespace Umbraco.Web.Scheduling
         {
             using (var wc = new HttpClient())
             {
+                if (Uri.TryCreate(_appContext.UmbracoApplicationUrl, UriKind.Absolute, out var baseUri))
+                {
+                    wc.BaseAddress = baseUri;
+                }
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
 
                 //TODO: pass custom the authorization header, currently these aren't really secured!
@@ -70,7 +74,7 @@ namespace Umbraco.Web.Scheduling
 
                 try
                 {
-                    var result = await wc.SendAsync(request, token);
+                    var result = await wc.SendAsync(request, token).ConfigureAwait(false); // ConfigureAwait(false) is recommended? http://blog.stephencleary.com/2012/07/dont-block-on-async-code.html
                     return result.StatusCode == HttpStatusCode.OK;
                 }
                 catch (Exception ex)
@@ -79,11 +83,6 @@ namespace Umbraco.Web.Scheduling
                 }
                 return false;
             }
-        }
-
-        public override bool PerformRun()
-        {
-            throw new NotImplementedException();
         }
 
         public override async Task<bool> PerformRunAsync(CancellationToken token)
@@ -125,11 +124,6 @@ namespace Umbraco.Web.Scheduling
         public override bool IsAsync
         {
             get { return true; }
-        }
-
-        public override bool RunsOnShutdown
-        {
-            get { return false; }
         }
     }
 }

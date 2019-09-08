@@ -9,23 +9,26 @@
 
 small.umb-detail,
 label small, .guiDialogTiny {
-  color: #b3b3b3 !important;
+  color: @gray-5 !important;
   text-decoration: none;
   display: block;
   font-weight: normal;
   font-size: 11px
 }
 
-label.control-label {
-  padding: 8px 10px 0 0 !important;
+label.control-label, .control-label {
+  padding: 0 10px 0 0 !important;
+  font-weight: bold;
+  color: @black;
 }
 
+
 .umb-status-label{
-    color: @gray !important;
+    color: @gray-3 !important;
   }
 
 
-.controls-row label{padding: 0 10px 0 10px; vertical-align: center}
+.controls-row label{padding: 0 10px 0 10px; vertical-align: middle;}
 
 
 
@@ -53,29 +56,60 @@ label.control-label {
     cursor:pointer;
 }
 .form-search a:hover{
-    color: @gray;
+    color: @gray-3;
 }
 .form-search h4 {
-    color: @gray;
+    color: @gray-3;
 }
 .form-search small {
-    color: @grayLight;
+    color: @gray-8;
 }
 .form-search .icon, .form-search .icon-search {
   position: absolute;
+  z-index: 1;
   top: 6px;
-  left: 4px;
-  color: @grayLight;
+  left: 6px;
+  color: @gray-8;
 }
+
+.form-search .icon-search {
+    pointer-events: none;
+}
+
 .form-search input {
   width: 90%;
   font-size: @fontSizeLarge;
   font-weight: 400;
-  border: 1px solid @grayLight;
+  border: 1px solid @gray-8;
   padding: 4px 0px 4px 16px;
   padding-left: 25px !Important;
   line-height: 22px;
   background: @white
+}
+
+.form-search .icon-search + .search-input {
+    padding-left: 25px !important;
+}
+
+.form-search .search-input {
+    font-weight: bold;
+    border-color: @gray-8;
+
+    &:hover,
+    &:focus,
+    &:focus:hover {
+        border-color: @gray-7;
+    }
+
+    &:-moz-placeholder {
+      font-weight: normal;
+    }
+    &:-ms-input-placeholder {
+      font-weight: normal;
+    }
+    &::-webkit-input-placeholder {
+      font-weight: normal;
+    }
 }
 
 
@@ -85,6 +119,10 @@ label.control-label {
 // Make all forms have space below them
 form {
   margin: 0 0 @baseLineHeight;
+}
+
+form.-no-margin-bottom {
+   margin-bottom: 0;
 }
 
 fieldset {
@@ -103,12 +141,12 @@ legend {
   line-height: @baseLineHeight * 2;
   color: @grayDark;
   border: 0;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid @gray-8;
 
   // Small
   small {
     font-size: @baseLineHeight * .75;
-    color: @grayLight;
+    color: @gray-8;
   }
 }
 
@@ -131,7 +169,7 @@ textarea {
 
 // Identify controls by their labels
 label {
-  display: block;
+  display: inline-block;
   margin-bottom: 5px;
 }
 
@@ -157,14 +195,21 @@ input[type="tel"],
 input[type="color"],
 .uneditable-input {
   display: inline-block;
-  height: @baseLineHeight;
+  height: @inputHeight;
   padding: 4px 6px;
   margin-bottom: @baseLineHeight / 2;
   font-size: @baseFontSize;
   line-height: @baseLineHeight;
-  color: @gray;
+  color: @gray-3;
   .border-radius(@inputBorderRadius);
   vertical-align: middle;
+  box-sizing: border-box;
+}
+
+input.-full-width-input {
+   width: 100%;
+   box-sizing: border-box;
+   padding: 4px 6px;
 }
 
 // Reset appearance properties for textual inputs and textarea
@@ -263,7 +308,7 @@ input[type="checkbox"]:focus {
 // Make uneditable inputs look inactive
 .uneditable-input,
 .uneditable-textarea {
-  color: @grayLight;
+  color: @gray-8;
   background-color: darken(@inputBackground, 1%);
   border-color: @inputBorder;
   .box-shadow(inset 0 1px 2px rgba(0,0,0,.025));
@@ -289,7 +334,7 @@ input[type="checkbox"]:focus {
 // Placeholder text gets special styles because when browsers invalidate entire lines if it doesn't understand a selector
 input,
 textarea {
-  .placeholder();
+  .placeholder(@gray-6);
 }
 
 
@@ -302,6 +347,12 @@ textarea {
   min-height: @baseLineHeight; // clear the floating input if there is no label text
   padding-left: 20px;
 }
+
+.radio.no-indent,
+.checkbox.no-indent {
+  padding-left: 0;
+}
+
 .radio input[type="radio"],
 .checkbox input[type="checkbox"] {
   float: left;
@@ -341,6 +392,8 @@ textarea {
 .input-large      { width: 210px; }
 .input-xlarge     { width: 270px; }
 .input-xxlarge    { width: 530px; }
+
+input.input--no-border { border: none; }
 
 // Grid style input sizes
 input[class*="span"],
@@ -423,49 +476,23 @@ input[type="checkbox"][readonly] {
 
 
 //SD: NOTE: Had to change these to use our 'form' prefixed colors since we cannot
-// share colors with the notifications/alerts. Also had to change them so that 
+// share colors with the notifications/alerts. Also had to change them so that
 // we do not show any errors unless the containing element has the show-validation
 // class assigned.
 
 // FORM FIELD FEEDBACK STATES
 // --------------------------
 
-// Warning
-.show-validation.ng-invalid .control-group.warning {
-  .formFieldState(@formWarningText, @formWarningText, @formWarningBackground);
-}
 // Error
-.show-validation.ng-invalid .control-group.error {
+.show-validation.ng-invalid .control-group.error,
+.show-validation.ng-invalid .umb-panel-header-content-wrapper {
     .formFieldState(@formErrorText, @formErrorText, @formErrorBackground);
-}
-// Success
-.show-validation.ng-invalid .control-group.success {
-  .formFieldState(@formSuccessText, @formSuccessText, @formSuccessBackground);
-}
-// Success
-.show-validation.ng-invalid .control-group.info {
-  .formFieldState(@formInfoText, @formInfoText, @formInfoBackground);
-}
-
-// HTML5 invalid states 
-// Shares styles with the .control-group.error above
-
-.show-validation input:focus:invalid,
-.show-validation textarea:focus:invalid,
-.show-validation select:focus:invalid {
-  color: @formErrorText;
-  border-color: #ee5f5b;
-  &:focus {
-    border-color: darken(#ee5f5b, 10%);
-    @shadow: 0 0 6px lighten(#ee5f5b, 20%);
-    .box-shadow(@shadow);
-  }
 }
 
 //val-highlight directive styling
 .highlight-error {
     color: @formErrorText !important;
-    border-color: #ee5f5b !important;
+    border-color: @red-l1 !important;
 }
 
 //disable the glowing border for the umb-content-name
@@ -491,7 +518,7 @@ input[type="checkbox"][readonly] {
   margin-top: @baseLineHeight;
   margin-bottom: @baseLineHeight;
   background-color: @formActionsBackground;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid @gray-8;
   .clearfix(); // Adding clearfix to allow for .pull-right button containers
 }
 
@@ -547,7 +574,6 @@ input[type="checkbox"][readonly] {
     margin-bottom: 0; // prevent bottom margin from screwing up alignment in stacked forms
     *margin-left: 0;
     vertical-align: top;
-    .border-radius(0 @inputBorderRadius @inputBorderRadius 0);
     // Make input on top when focused so blue border and shadow always show
     &:focus {
       z-index: 2;
@@ -556,16 +582,16 @@ input[type="checkbox"][readonly] {
   .add-on {
     display: inline-block;
     width: auto;
-    height: @baseLineHeight;
-    min-width: 16px;
-    padding: 4px 5px;
+    height: 22px;
+    min-width: 18px;
+    padding: 4px 6px;
     font-size: @baseFontSize;
     font-weight: normal;
     line-height: @baseLineHeight;
     text-align: center;
     text-shadow: 0 1px 0 @white;
-    background-color: @grayLighter;
-    border: 1px solid #ccc;
+    background-color: @gray-10;
+    border: 1px solid @gray-8;
   }
   .add-on,
   .btn,
@@ -584,30 +610,13 @@ input[type="checkbox"][readonly] {
   .btn {
     margin-right: -1px;
   }
-  .add-on:first-child,
-  .btn:first-child {
-    .border-radius(@inputBorderRadius 0 0 @inputBorderRadius);
-  }
 }
 
 .input-append {
-  input,
-  select,
-  .uneditable-input {
-    .border-radius(@inputBorderRadius 0 0 @inputBorderRadius);
-    + .btn-group .btn:last-child {
-      .border-radius(0 @inputBorderRadius @inputBorderRadius 0);
-    }
-  }
   .add-on,
   .btn,
   .btn-group {
     margin-left: -1px;
-  }
-  .add-on:last-child,
-  .btn:last-child,
-  .btn-group:last-child > .dropdown-toggle {
-    .border-radius(0 @inputBorderRadius @inputBorderRadius 0);
   }
 }
 
@@ -647,29 +656,21 @@ input.search-query {
   padding-left: 14px;
   padding-left: 4px \9; /* IE7-8 doesn't have border-radius, so don't indent the padding */
   margin: 0; // Remove the default margin on all inputs
-  .border-radius(0px);
 }
 
 /* Allow for input prepend/append in search forms */
-.form-search .input-append .search-query,
-.form-search .input-prepend .search-query {
-  .border-radius(0); // Override due to specificity
+.form-search {
+    .input-prepend {
+        .btn {
+            .border-radius(0 @borderRadiusSmall @borderRadiusSmall 0);
+        }
+    }
+    .input-append {
+        .btn {
+            .border-radius(0 @borderRadiusSmall @borderRadiusSmall 0);
+        }
+    } 
 }
-.form-search .input-append .search-query {
-  .border-radius(14px 0 0 14px);
-}
-.form-search .input-append .btn {
-  .border-radius(0 14px 14px 0);
-}
-.form-search .input-prepend .search-query {
-  .border-radius(0 14px 14px 0);
-}
-.form-search .input-prepend .btn {
-  .border-radius(14px 0 0 14px);
-}
-
-
-
 
 // HORIZONTAL & VERTICAL FORMS
 // ---------------------------
@@ -735,6 +736,11 @@ input.search-query {
   margin-bottom: @baseLineHeight / 2;
 }
 
+//modifier for control group
+.control-group.-no-margin {
+  margin-bottom:0;
+}
+
 // Legend collapses margin, so next element is responsible for spacing
 legend + .control-group {
   margin-top: @baseLineHeight;
@@ -769,6 +775,8 @@ legend + .control-group {
       *padding-left: @horizontalComponentOffset;
     }
   }
+
+ 
   // Remove bottom margin on block level help text since that's accounted for on .control-group
   .help-block {
     margin-bottom: 0;
@@ -789,6 +797,14 @@ legend + .control-group {
     padding-left: @horizontalComponentOffset;
   }
 }
+
+// adjustments for properties tab
+.form-horizontal .block-form .control-label {
+  display: block;
+  float: none;
+  width: 100%;
+}
+
 //make sure buttons are always on top
 .umb-panel-buttons .umb-btn-toolbar .btn {
     position: relative;
@@ -808,3 +824,8 @@ legend + .control-group {
   }
 
 }
+
+/* User/group selector */
+.group-selector .group-selector-list { float: left; }
+.group-selector .group-selector-list div { height: 24px; }
+.group-selector .group-selector-buttons { float: left; margin: 24px 16px; }

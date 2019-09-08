@@ -1,13 +1,15 @@
 using System;
+using umbraco.interfaces;
 
 namespace Umbraco.Core.PropertyEditors
 {
+    /// <summary>
     /// Maps a property source value to a data object.
     /// </summary>
     // todo: drop IPropertyEditorValueConverter support (when?).
     [Obsolete("Use IPropertyValueConverter.")]
-    public interface IPropertyEditorValueConverter
-	{
+    public interface IPropertyEditorValueConverter : IDiscoverable
+    {
 		/// <summary>
 		/// Returns a value indicating whether this provider applies to the specified property.
 		/// </summary>

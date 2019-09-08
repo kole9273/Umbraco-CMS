@@ -1,23 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net.Http.Formatting;
+using System.Net.Http.Headers;
 using System.Web.Http;
 using System.Web.Http.ModelBinding;
 using System.Web.Security;
 using AutoMapper;
-using Examine.LuceneEngine.SearchCriteria;
-using Examine.SearchCriteria;
 using Umbraco.Core;
 using Umbraco.Core.Logging;
 using Umbraco.Core.Models;
-using Umbraco.Core.Models.EntityBase;
 using Umbraco.Core.Models.Membership;
-using Umbraco.Core.Persistence;
 using Umbraco.Core.Persistence.DatabaseModelDefinitions;
 using Umbraco.Core.Security;
 using Umbraco.Core.Services;
@@ -27,9 +22,7 @@ using Umbraco.Web.Models.ContentEditing;
 using Umbraco.Web.Mvc;
 using Umbraco.Web.WebApi.Binders;
 using Umbraco.Web.WebApi.Filters;
-using umbraco;
 using Constants = Umbraco.Core.Constants;
-using Examine;
 
 namespace Umbraco.Web.Editors
 {
@@ -72,15 +65,16 @@ namespace Umbraco.Web.Editors
             get { return Services.MemberService.GetMembershipScenario(); }
         }
 
-        public PagedResult<MemberBasic> GetPagedResults(            
+        public PagedResult<MemberBasic> GetPagedResults(
             int pageNumber = 1,
             int pageSize = 100,
-            string orderBy = "Name",
+            string orderBy = "username",
             Direction orderDirection = Direction.Ascending,
+            bool orderBySystemField = true,
             string filter = "",
             string memberTypeAlias = null)
         {
-            
+
             if (pageNumber <= 0 || pageSize <= 0)
             {
                 throw new NotSupportedException("Both pageNumber and pageSize must be greater than zero");
@@ -88,32 +82,55 @@ namespace Umbraco.Web.Editors
 
             if (MembershipScenario == MembershipScenario.NativeUmbraco)
             {
-                long totalRecords;
-                var members = Services.MemberService.GetAll((pageNumber - 1), pageSize, out totalRecords, orderBy, orderDirection, memberTypeAlias, filter).ToArray();
+                var members = Services.MemberService
+                    .GetAll((pageNumber - 1), pageSize, out var totalRecords, orderBy, orderDirection, orderBySystemField, memberTypeAlias, filter).ToArray();
                 if (totalRecords == 0)
                 {
                     return new PagedResult<MemberBasic>(0, 0, 0);
                 }
-                var pagedResult = new PagedResult<MemberBasic>(totalRecords, pageNumber, pageSize);
-                pagedResult.Items = members
-                    .Select(Mapper.Map<IMember, MemberBasic>);
+
+                var pagedResult = new PagedResult<MemberBasic>(totalRecords, pageNumber, pageSize)
+                {
+                    Items = members
+                        .Select(x => AutoMapperExtensions.MapWithUmbracoContext<IMember, MemberBasic>(x, UmbracoContext))
+                };
                 return pagedResult;
             }
             else
             {
                 int totalRecords;
-                var members = _provider.GetAllUsers((pageNumber - 1), pageSize, out totalRecords);
+
+                MembershipUserCollection members;
+                if (filter.IsNullOrWhiteSpace())
+                {
+                    members = _provider.GetAllUsers((pageNumber - 1), pageSize, out totalRecords);
+                }
+                else
+                {
+                    //we need to search!
+
+                    //try by name first
+                    members = _provider.FindUsersByName(filter, (pageNumber - 1), pageSize, out totalRecords);
+                    if (totalRecords == 0)
+                    {
+                        //try by email then
+                        members = _provider.FindUsersByEmail(filter, (pageNumber - 1), pageSize, out totalRecords);
+                    }
+                }
                 if (totalRecords == 0)
                 {
                     return new PagedResult<MemberBasic>(0, 0, 0);
                 }
-                var pagedResult = new PagedResult<MemberBasic>(totalRecords, pageNumber, pageSize);
-                pagedResult.Items = members
-                    .Cast<MembershipUser>()
-                    .Select(Mapper.Map<MembershipUser, MemberBasic>);
+
+                var pagedResult = new PagedResult<MemberBasic>(totalRecords, pageNumber, pageSize)
+                {
+                    Items = members
+                        .Cast<MembershipUser>()
+                        .Select(Mapper.Map<MembershipUser, MemberBasic>)
+                };
                 return pagedResult;
             }
-            
+
         }
 
         /// <summary>
@@ -134,7 +151,7 @@ namespace Umbraco.Web.Editors
                 ParentId = -1
             };
 
-            TabsAndPropertiesResolver.AddListView(display, "member", Services.DataTypeService);
+            TabsAndPropertiesResolver<IMember>.AddListView(display, "member", Services.DataTypeService, Services.TextService);
 
             return display;
         }
@@ -144,6 +161,7 @@ namespace Umbraco.Web.Editors
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
+        [OutgoingEditorModelEvent]
         public MemberDisplay GetByKey(Guid key)
         {
             MembershipUser foundMembershipMember;
@@ -157,26 +175,26 @@ namespace Umbraco.Web.Editors
                     {
                         HandleContentNotFound(key);
                     }
-                    return Mapper.Map<IMember, MemberDisplay>(foundMember);
+                    return AutoMapperExtensions.MapWithUmbracoContext<IMember, MemberDisplay>(foundMember, UmbracoContext);
                 case MembershipScenario.CustomProviderWithUmbracoLink:
 
-                    //TODO: Support editing custom properties for members with a custom membership provider here.
+                //TODO: Support editing custom properties for members with a custom membership provider here.
 
-                    //foundMember = Services.MemberService.GetByKey(key);
-                    //if (foundMember == null)
-                    //{
-                    //    HandleContentNotFound(key);
-                    //}
-                    //foundMembershipMember = Membership.GetUser(key, false);
-                    //if (foundMembershipMember == null)
-                    //{
-                    //    HandleContentNotFound(key);
-                    //}
+                //foundMember = Services.MemberService.GetByKey(key);
+                //if (foundMember == null)
+                //{
+                //    HandleContentNotFound(key);
+                //}
+                //foundMembershipMember = Membership.GetUser(key, false);
+                //if (foundMembershipMember == null)
+                //{
+                //    HandleContentNotFound(key);
+                //}
 
-                    //display = Mapper.Map<MembershipUser, MemberDisplay>(foundMembershipMember);
-                    ////map the name over
-                    //display.Name = foundMember.Name;
-                    //return display;
+                //display = Mapper.Map<MembershipUser, MemberDisplay>(foundMembershipMember);
+                ////map the name over
+                //display.Name = foundMember.Name;
+                //return display;
 
                 case MembershipScenario.StandaloneCustomProvider:
                 default:
@@ -195,6 +213,7 @@ namespace Umbraco.Web.Editors
         /// </summary>
         /// <param name="contentTypeAlias"></param>
         /// <returns></returns>
+        [OutgoingEditorModelEvent]
         public MemberDisplay GetEmpty(string contentTypeAlias = null)
         {
             IMember emptyContent;
@@ -212,18 +231,20 @@ namespace Umbraco.Web.Editors
                         throw new HttpResponseException(HttpStatusCode.NotFound);
                     }
 
+                    var provider = Core.Security.MembershipProviderExtensions.GetMembersMembershipProvider();
+
                     emptyContent = new Member(contentType);
-                    emptyContent.AdditionalData["NewPassword"] = Membership.GeneratePassword(Membership.MinRequiredPasswordLength, Membership.MinRequiredNonAlphanumericCharacters);
-                    return Mapper.Map<IMember, MemberDisplay>(emptyContent);
+                    emptyContent.AdditionalData["NewPassword"] = Membership.GeneratePassword(provider.MinRequiredPasswordLength, provider.MinRequiredNonAlphanumericCharacters);
+                    return AutoMapperExtensions.MapWithUmbracoContext<IMember, MemberDisplay>(emptyContent, UmbracoContext);
                 case MembershipScenario.CustomProviderWithUmbracoLink:
-                    //TODO: Support editing custom properties for members with a custom membership provider here.
+                //TODO: Support editing custom properties for members with a custom membership provider here.
 
                 case MembershipScenario.StandaloneCustomProvider:
                 default:
                     //we need to return a scaffold of a 'simple' member - basically just what a membership provider can edit
                     emptyContent = MemberService.CreateGenericMembershipProviderMember("", "", "", "");
                     emptyContent.AdditionalData["NewPassword"] = Membership.GeneratePassword(Membership.MinRequiredPasswordLength, Membership.MinRequiredNonAlphanumericCharacters);
-                    return Mapper.Map<IMember, MemberDisplay>(emptyContent);
+                    return AutoMapperExtensions.MapWithUmbracoContext<IMember, MemberDisplay>(emptyContent, UmbracoContext);
             }
         }
 
@@ -232,6 +253,7 @@ namespace Umbraco.Web.Editors
         /// </summary>
         /// <returns></returns>        
         [FileUploadCleanupFilter]
+        [OutgoingEditorModelEvent]
         public MemberDisplay PostSave(
             [ModelBinder(typeof(MemberBinder))]
                 MemberSave contentItem)
@@ -262,7 +284,7 @@ namespace Umbraco.Web.Editors
             //Unlike content/media - if there are errors for a member, we do NOT proceed to save them, we cannot so return the errors
             if (ModelState.IsValid == false)
             {
-                var forDisplay = Mapper.Map<IMember, MemberDisplay>(contentItem.PersistedContent);
+                var forDisplay = AutoMapperExtensions.MapWithUmbracoContext<IMember, MemberDisplay>(contentItem.PersistedContent, UmbracoContext);
                 forDisplay.Errors = ModelState.ToErrorDictionary();
                 throw new HttpResponseException(Request.CreateValidationErrorResponse(forDisplay));
             }
@@ -272,6 +294,14 @@ namespace Umbraco.Web.Editors
             {
                 throw new NotSupportedException("Currently the member editor does not support providers that have RequiresQuestionAndAnswer specified");
             }
+
+            //We're gonna look up the current roles now because the below code can cause
+            // events to be raised and developers could be manually adding roles to members in 
+            // their handlers. If we don't look this up now there's a chance we'll just end up
+            // removing the roles they've assigned.
+            var currRoles = Roles.GetRolesForUser(contentItem.PersistedContent.Username);
+            //find the ones to remove and remove them
+            var rolesToRemove = currRoles.Except(contentItem.Groups).ToArray();
 
             string generatedPassword = null;
             //Depending on the action we need to first do a create or update using the membership provider
@@ -284,6 +314,9 @@ namespace Umbraco.Web.Editors
                 case ContentSaveAction.SaveNew:
                     MembershipCreateStatus status;
                     CreateWithMembershipProvider(contentItem, out status);
+
+                    // save the ID of the creator
+                    contentItem.PersistedContent.CreatorId = Security.CurrentUser.Id;
                     break;
                 default:
                     //we don't support anything else for members
@@ -293,7 +326,7 @@ namespace Umbraco.Web.Editors
             //If we've had problems creating/updating the user with the provider then return the error
             if (ModelState.IsValid == false)
             {
-                var forDisplay = Mapper.Map<IMember, MemberDisplay>(contentItem.PersistedContent);
+                var forDisplay = AutoMapperExtensions.MapWithUmbracoContext<IMember, MemberDisplay>(contentItem.PersistedContent, UmbracoContext);
                 forDisplay.Errors = ModelState.ToErrorDictionary();
                 throw new HttpResponseException(Request.CreateValidationErrorResponse(forDisplay));
             }
@@ -313,15 +346,12 @@ namespace Umbraco.Web.Editors
 
             //Now let's do the role provider stuff - now that we've saved the content item (that is important since
             // if we are changing the username, it must be persisted before looking up the member roles).
-            var currGroups = Roles.GetRolesForUser(contentItem.PersistedContent.Username);
-            //find the ones to remove and remove them
-            var toRemove = currGroups.Except(contentItem.Groups).ToArray();
-            if (toRemove.Any())
+            if (rolesToRemove.Any())
             {
-                Roles.RemoveUserFromRoles(contentItem.PersistedContent.Username, toRemove);
+                Roles.RemoveUserFromRoles(contentItem.PersistedContent.Username, rolesToRemove);
             }
             //find the ones to add and add them
-            var toAdd = contentItem.Groups.Except(currGroups).ToArray();
+            var toAdd = contentItem.Groups.Except(currRoles).ToArray();
             if (toAdd.Any())
             {
                 //add the ones submitted
@@ -334,17 +364,18 @@ namespace Umbraco.Web.Editors
             contentItem.PersistedContent.AdditionalData["GeneratedPassword"] = generatedPassword;
 
             //return the updated model
-            var display = Mapper.Map<IMember, MemberDisplay>(contentItem.PersistedContent);
+            var display = AutoMapperExtensions.MapWithUmbracoContext<IMember, MemberDisplay>(contentItem.PersistedContent, UmbracoContext);
 
             //lasty, if it is not valid, add the modelstate to the outgoing object and throw a 403
             HandleInvalidModelState(display);
 
+            var localizedTextService = Services.TextService;
             //put the correct msgs in 
             switch (contentItem.Action)
             {
                 case ContentSaveAction.Save:
                 case ContentSaveAction.SaveNew:
-                    display.AddSuccessNotification(ui.Text("speechBubbles", "editMemberSaved"), ui.Text("speechBubbles", "editMemberSaved"));
+                    display.AddSuccessNotification(localizedTextService.Localize("speechBubbles/editMemberSaved"), localizedTextService.Localize("speechBubbles/editMemberSaved"));
                     break;
             }
 
@@ -388,6 +419,33 @@ namespace Umbraco.Web.Editors
 
             var shouldReFetchMember = false;
             var providedUserName = contentItem.PersistedContent.Username;
+
+            //if the user doesn't have access to sensitive values, then we need to check if any of the built in member property types
+            //have been marked as sensitive. If that is the case we cannot change these persisted values no matter what value has been posted.
+            //There's only 3 special ones we need to deal with that are part of the MemberSave instance
+            if (Security.CurrentUser.HasAccessToSensitiveData() == false)
+            {
+                var sensitiveProperties = contentItem.PersistedContent.ContentType
+                    .PropertyTypes.Where(x => contentItem.PersistedContent.ContentType.IsSensitiveProperty(x.Alias))
+                    .ToList();
+
+                foreach (var sensitiveProperty in sensitiveProperties)
+                {
+                    //if found, change the value of the contentItem model to the persisted value so it remains unchanged
+                    switch (sensitiveProperty.Alias)
+                    {
+                        case Constants.Conventions.Member.Comments:
+                            contentItem.Comments = contentItem.PersistedContent.Comments;
+                            break;
+                        case Constants.Conventions.Member.IsApproved:
+                            contentItem.IsApproved = contentItem.PersistedContent.IsApproved;
+                            break;
+                        case Constants.Conventions.Member.IsLockedOut:
+                            contentItem.IsLockedOut = contentItem.PersistedContent.IsLockedOut;
+                            break;
+                    }
+                }
+            }
 
             //Update the membership user if it has changed
             try
@@ -492,7 +550,7 @@ namespace Umbraco.Web.Editors
         private void RefetchMemberData(MemberSave contentItem, LookupType lookup)
         {
             var currProps = contentItem.PersistedContent.Properties.ToArray();
-            
+
             switch (MembershipScenario)
             {
                 case MembershipScenario.NativeUmbraco:
@@ -500,11 +558,11 @@ namespace Umbraco.Web.Editors
                     {
                         case LookupType.ByKey:
                             //Go and re-fetch the persisted item
-                            contentItem.PersistedContent = Services.MemberService.GetByKey(contentItem.Key);                    
+                            contentItem.PersistedContent = Services.MemberService.GetByKey(contentItem.Key);
                             break;
                         case LookupType.ByUserName:
                             contentItem.PersistedContent = Services.MemberService.GetByUsername(contentItem.Username.Trim());
-                            break;                        
+                            break;
                     }
                     break;
                 case MembershipScenario.CustomProviderWithUmbracoLink:
@@ -512,17 +570,17 @@ namespace Umbraco.Web.Editors
                 default:
                     var membershipUser = _provider.GetUser(contentItem.Key, false);
                     //Go and re-fetch the persisted item
-                    contentItem.PersistedContent = Mapper.Map<MembershipUser, IMember>(membershipUser);                    
+                    contentItem.PersistedContent = Mapper.Map<MembershipUser, IMember>(membershipUser);
                     break;
             }
 
             UpdateName(contentItem);
 
             //re-assign the mapped values that are not part of the membership provider properties.
-            var builtInAliases = Constants.Conventions.Member.GetStandardPropertyTypeStubs().Select(x => x.Key).ToArray();            
+            var builtInAliases = Constants.Conventions.Member.GetStandardPropertyTypeStubs().Select(x => x.Key).ToArray();
             foreach (var p in contentItem.PersistedContent.Properties)
             {
-                var valueMapped = currProps.SingleOrDefault(x => x.Alias == p.Alias);
+                var valueMapped = currProps.FirstOrDefault(x => x.Alias == p.Alias);
                 if (builtInAliases.Contains(p.Alias) == false && valueMapped != null)
                 {
                     p.Value = valueMapped.Value;
@@ -530,7 +588,7 @@ namespace Umbraco.Web.Editors
                     p.TagSupport.Enable = valueMapped.TagSupport.Enable;
                     p.TagSupport.Tags = valueMapped.TagSupport.Tags;
                 }
-            }            
+            }
         }
 
         /// <summary>
@@ -583,7 +641,7 @@ namespace Umbraco.Web.Editors
                         contentItem.IsApproved,
                         Guid.NewGuid(), //since it's the umbraco provider, the user key here doesn't make any difference
                         out status);
-                    
+
                     break;
                 case MembershipScenario.CustomProviderWithUmbracoLink:
                     //We are using a custom membership provider, we'll create an empty IMember first to get the unique id to use
@@ -606,7 +664,7 @@ namespace Umbraco.Web.Editors
                 case MembershipScenario.StandaloneCustomProvider:
                     // we don't have a member type to use so we will just create the basic membership user with the provider with no
                     // link back to the umbraco data
-                   
+
                     var newKey = Guid.NewGuid();
                     //TODO: We are not supporting q/a - passing in empty here
                     membershipUser = _provider.CreateUser(
@@ -616,9 +674,9 @@ namespace Umbraco.Web.Editors
                         "TEMP", //some membership provider's require something here even if q/a is disabled!
                         "TEMP", //some membership provider's require something here even if q/a is disabled!
                         contentItem.IsApproved,
-                        newKey, 
+                        newKey,
                         out status);
-                    
+
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -673,12 +731,12 @@ namespace Umbraco.Web.Editors
                     break;
                 case MembershipCreateStatus.InvalidProviderUserKey:
                     ModelState.AddPropertyError(
-                        //specify 'default' just so that it shows up as a notification - is not assigned to a property
+                       //specify 'default' just so that it shows up as a notification - is not assigned to a property
                        new ValidationResult("Invalid provider user key"), "default");
                     break;
                 case MembershipCreateStatus.DuplicateProviderUserKey:
                     ModelState.AddPropertyError(
-                        //specify 'default' just so that it shows up as a notification - is not assigned to a property
+                       //specify 'default' just so that it shows up as a notification - is not assigned to a property
                        new ValidationResult("Duplicate provider user key"), "default");
                     break;
                 case MembershipCreateStatus.ProviderError:
@@ -740,5 +798,38 @@ namespace Umbraco.Web.Editors
 
             return Request.CreateResponse(HttpStatusCode.OK);
         }
+
+        /// <summary>
+        /// Exports member data based on their unique Id
+        /// </summary>
+        /// <param name="key">The unique <see cref="Guid">member identifier</see></param>
+        /// <returns><see cref="HttpResponseMessage"/></returns>
+        [HttpGet]
+        public HttpResponseMessage ExportMemberData(Guid key)
+        {
+            var currentUser = Security.CurrentUser;
+
+            var httpResponseMessage = Request.CreateResponse();
+            if (currentUser.HasAccessToSensitiveData() == false)
+            {
+                httpResponseMessage.StatusCode = HttpStatusCode.Forbidden;
+                return httpResponseMessage;
+            }
+
+            var member = ((MemberService)Services.MemberService).ExportMember(key);
+
+            var fileName = $"{member.Name}_{member.Email}.txt";
+
+            httpResponseMessage.Content = new ObjectContent<MemberExportModel>(member, new JsonMediaTypeFormatter { Indent = true });
+            httpResponseMessage.Content.Headers.Add("x-filename", fileName);
+            httpResponseMessage.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            httpResponseMessage.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment");
+            httpResponseMessage.Content.Headers.ContentDisposition.FileName = fileName;
+            httpResponseMessage.StatusCode = HttpStatusCode.OK;
+
+            return httpResponseMessage;
+        }
     }
+
+
 }

@@ -10,6 +10,7 @@ using Umbraco.Core.Configuration;
 using Umbraco.Core.IO;
 using umbraco.interfaces;
 using Umbraco.Core;
+using Umbraco.Core.Configuration.UmbracoSettings;
 using Content = umbraco.cms.businesslogic.Content;
 using Umbraco.Core;
 
@@ -20,16 +21,16 @@ namespace umbraco.editorControls
     public class uploadField : HtmlInputFile, IDataEditor
     {
         private const string Thumbnailext = ".jpg";
-		private readonly cms.businesslogic.datatype.FileHandlerData _data;
+        private readonly cms.businesslogic.datatype.FileHandlerData _data;
         private readonly string _thumbnails;
         private string _text;
-        private readonly MediaFileSystem _fs; 
+        private readonly MediaFileSystem _fs;
         private CustomValidator _customValidator;
 
         public uploadField(IData Data, string ThumbnailSizes)
         {
             _fs = FileSystemProviderManager.Current.GetFileSystemProvider<MediaFileSystem>();
-            _data = (cms.businesslogic.datatype.FileHandlerData) Data; //this is always FileHandlerData
+            _data = (cms.businesslogic.datatype.FileHandlerData)Data; //this is always FileHandlerData
             _thumbnails = ThumbnailSizes;
         }
 
@@ -40,7 +41,7 @@ namespace umbraco.editorControls
 
             _customValidator = new CustomValidator
                 {
-                    EnableClientScript = false, 
+                    EnableClientScript = false,
                     Display = ValidatorDisplay.Dynamic,
                     ErrorMessage = ui.Text("errors", "dissallowedMediaType")
                 };
@@ -71,8 +72,8 @@ namespace umbraco.editorControls
                     return "";
                 if (isEmpty == false)
                     return PostedFile.FileName;
-                return string.IsNullOrEmpty(tempText) == false 
-                    ? tempText 
+                return string.IsNullOrEmpty(tempText) == false
+                    ? tempText
                     : "";
             }
         }
@@ -87,11 +88,11 @@ namespace umbraco.editorControls
             //return true if there is no file
             if (postedFile == null) return true;
             if (postedFile.FileName.IsNullOrWhiteSpace()) return true;
-            
+
             //now check the file type
             var extension = Path.GetExtension(postedFile.FileName).TrimStart(".");
 
-            return UmbracoConfig.For.UmbracoSettings().Content.DisallowedUploadFiles.Any(x => x.InvariantEquals(extension)) == false;
+            return UmbracoConfig.For.UmbracoSettings().Content.IsFileAllowedForUpload(extension);
         }
 
         public string Text
@@ -169,12 +170,12 @@ namespace umbraco.editorControls
                 {
                     var content = _data.LoadedContentItem;
 
-						// update extension in UI
-						UpdateLabelValue(Constants.Conventions.Media.Extension, "prop_umbracoExtension", Page, content);
+                    // update extension in UI
+                    UpdateLabelValue(Constants.Conventions.Media.Extension, "prop_umbracoExtension", Page, content);
                     // update file size in UI
-						UpdateLabelValue(Constants.Conventions.Media.Bytes, "prop_umbracoBytes", Page, content);
-						UpdateLabelValue(Constants.Conventions.Media.Width, "prop_umbracoWidth", Page, content);
-						UpdateLabelValue(Constants.Conventions.Media.Height, "prop_umbracoHeight", Page, content);
+                    UpdateLabelValue(Constants.Conventions.Media.Bytes, "prop_umbracoBytes", Page, content);
+                    UpdateLabelValue(Constants.Conventions.Media.Width, "prop_umbracoWidth", Page, content);
+                    UpdateLabelValue(Constants.Conventions.Media.Height, "prop_umbracoHeight", Page, content);
                 }
 
             }
@@ -199,8 +200,8 @@ namespace umbraco.editorControls
         [Obsolete("This method is now obsolete due to a change in the way that files are handled.  If you need to check if a URL for an uploaded file is safe you should implement your own as this method will be removed in a future version", false)]
         public string SafeUrl(string url)
         {
-            return string.IsNullOrEmpty(url) == false 
-                ? Regex.Replace(url, @"[^a-zA-Z0-9\-\.\/\:]{1}", "_") 
+            return string.IsNullOrEmpty(url) == false
+                ? Regex.Replace(url, @"[^a-zA-Z0-9\-\.\/\:]{1}", "_")
                 : String.Empty;
         }
 
@@ -263,7 +264,7 @@ namespace umbraco.editorControls
                 }
             }
         }
-        
+
         /// <summary> 
         /// Render this control to the output parameter specified.
         /// </summary>
@@ -283,15 +284,22 @@ namespace umbraco.editorControls
             {
                 var relativeFilePath = _fs.GetRelativePath(_text);
                 var ext = relativeFilePath.Substring(relativeFilePath.LastIndexOf(".") + 1, relativeFilePath.Length - relativeFilePath.LastIndexOf(".") - 1);
-                var relativeThumbFilePath = relativeFilePath.Replace("." + ext, "_thumb.jpg");	            
-				var hasThumb = false;
+                var relativeThumbFilePath = relativeFilePath.Replace("." + ext, "_thumb." + ext);
+                var hasThumb = false;
                 try
                 {
                     hasThumb = _fs.FileExists(relativeThumbFilePath);
-                    // 4.8.0 added support for png thumbnails (but for legacy it might have been jpg - hence the check before)
-                    if (hasThumb == false && (ext == "gif" || ext == "png"))
+                    
+                    // 7.4.0 generates thumbs with the correct file extension, but check for old possible extensions as well
+                    if (hasThumb == false)
                     {
                         relativeThumbFilePath = relativeFilePath.Replace("." + ext, "_thumb.png");
+                        hasThumb = _fs.FileExists(relativeThumbFilePath);
+                    }
+
+                    if (hasThumb == false)
+                    {
+                        relativeThumbFilePath = relativeFilePath.Replace("." + ext, "_thumb.jpg");
                         hasThumb = _fs.FileExists(relativeThumbFilePath);
                     }
                 }
@@ -302,7 +310,7 @@ namespace umbraco.editorControls
                 {
                     var thumb = new Image
                     {
-                        ImageUrl = _fs.GetUrl(relativeThumbFilePath), 
+                        ImageUrl = _fs.GetUrl(relativeThumbFilePath),
                         BorderStyle = BorderStyle.None
                     };
 

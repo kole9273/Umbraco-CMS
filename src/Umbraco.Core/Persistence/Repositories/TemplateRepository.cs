@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Umbraco.Core.Configuration;
+using Umbraco.Core.Cache;
 using Umbraco.Core.Configuration.UmbracoSettings;
 using Umbraco.Core.IO;
 using Umbraco.Core.Logging;
@@ -16,9 +15,7 @@ using Umbraco.Core.Persistence.Factories;
 using Umbraco.Core.Persistence.Querying;
 using Umbraco.Core.Persistence.SqlSyntax;
 using Umbraco.Core.Persistence.UnitOfWork;
-using Umbraco.Core.Services;
 using Umbraco.Core.Strings;
-using Umbraco.Core.Sync;
 
 namespace Umbraco.Core.Persistence.Repositories
 {
@@ -32,9 +29,8 @@ namespace Umbraco.Core.Persistence.Repositories
         private readonly ITemplatesSection _templateConfig;
         private readonly ViewHelper _viewHelper;
         private readonly MasterPageHelper _masterPageHelper;
-        private readonly RepositoryCacheOptions _cacheOptions;
 
-        internal TemplateRepository(IDatabaseUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax, IFileSystem masterpageFileSystem, IFileSystem viewFileSystem, ITemplatesSection templateConfig)
+        internal TemplateRepository(IScopeUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax, IFileSystem masterpageFileSystem, IFileSystem viewFileSystem, ITemplatesSection templateConfig)
             : base(work, cache, logger, sqlSyntax)
         {
             _masterpagesFileSystem = masterpageFileSystem;
@@ -42,40 +38,19 @@ namespace Umbraco.Core.Persistence.Repositories
             _templateConfig = templateConfig;
             _viewHelper = new ViewHelper(_viewsFileSystem);
             _masterPageHelper = new MasterPageHelper(_masterpagesFileSystem);
-
-            _cacheOptions = new RepositoryCacheOptions
-            {
-                //Allow a zero count cache entry because GetAll() gets used quite a lot and we want to ensure
-                // if there are no templates, that it doesn't keep going to the db.
-                GetAllCacheAllowZeroCount = true,
-                //GetAll gets called a lot, we want to ensure that all templates are in the cache, default is 100 which
-                // would normally be fine but we'll increase it in case people have a ton of templates.
-                GetAllCacheThresholdLimit = 500
-            };
         }
 
-
-        /// <summary>
-        /// Returns the repository cache options
-        /// </summary>
-        protected override RepositoryCacheOptions RepositoryCacheOptions
+        protected override IRepositoryCachePolicy<ITemplate, int> CreateCachePolicy(IRuntimeCacheProvider runtimeCache)
         {
-            get { return _cacheOptions; }
+            return new FullDataSetRepositoryCachePolicy<ITemplate, int>(runtimeCache, GetEntityId, /*expires:*/ false);
         }
 
         #region Overrides of RepositoryBase<int,ITemplate>
 
         protected override ITemplate PerformGet(int id)
         {
-            var sql = GetBaseQuery(false).Where<TemplateDto>(x => x.NodeId == id);
-            var result = Database.Fetch<TemplateDto, NodeDto>(sql).FirstOrDefault();
-            if (result == null) return null;
-
-            //look up the simple template definitions that have a master template assigned, this is used 
-            // later to populate the template item's properties
-            var childIds = GetAxisDefinitions(result).ToArray();
-
-            return MapFromDto(result, childIds);
+            //use the underlying GetAll which will force cache all templates
+            return base.GetAll().FirstOrDefault(x => x.Id == id);
         }
 
         protected override IEnumerable<ITemplate> PerformGetAll(params int[] ids)
@@ -95,7 +70,7 @@ namespace Umbraco.Core.Persistence.Repositories
 
             if (dtos.Count == 0) return Enumerable.Empty<ITemplate>();
 
-            //look up the simple template definitions that have a master template assigned, this is used 
+            //look up the simple template definitions that have a master template assigned, this is used
             // later to populate the template item's properties
             var childIds = (ids.Any()
                 ? GetAxisDefinitions(dtos.ToArray())
@@ -105,7 +80,7 @@ namespace Umbraco.Core.Persistence.Repositories
                     ParentId = x.NodeDto.ParentId,
                     Name = x.Alias
                 })).ToArray();
-            
+
             return dtos.Select(d => MapFromDto(d, childIds));
         }
 
@@ -119,7 +94,7 @@ namespace Umbraco.Core.Persistence.Repositories
 
             if (dtos.Count == 0) return Enumerable.Empty<ITemplate>();
 
-            //look up the simple template definitions that have a master template assigned, this is used 
+            //look up the simple template definitions that have a master template assigned, this is used
             // later to populate the template item's properties
             var childIds = GetAxisDefinitions(dtos.ToArray()).ToArray();
 
@@ -151,7 +126,7 @@ namespace Umbraco.Core.Persistence.Repositories
             var list = new List<string>
                            {
                                "DELETE FROM umbracoUser2NodeNotify WHERE nodeId = @Id",
-                               "DELETE FROM umbracoUser2NodePermission WHERE nodeId = @Id",
+                               "DELETE FROM umbracoUserGroup2NodePermission WHERE nodeId = @Id",
                                "UPDATE cmsDocument SET templateId = NULL WHERE templateId = @Id",
                                "DELETE FROM cmsDocumentType WHERE templateNodeId = @Id",
                                "DELETE FROM cmsTemplate WHERE nodeId = @Id",
@@ -202,29 +177,7 @@ namespace Umbraco.Core.Persistence.Repositories
             template.Path = nodeDto.Path;
 
             //now do the file work
-
-            if (DetermineTemplateRenderingEngine(entity) == RenderingEngine.Mvc)
-            {
-                var result = _viewHelper.CreateView(template, true);
-                if (result != entity.Content)
-                {
-                    entity.Content = result;
-                    //re-persist it... though we don't really care about the templates in the db do we??!!
-                    dto.Design = result;
-                    Database.Update(dto);
-                }
-            }
-            else
-            {
-                var result = _masterPageHelper.CreateMasterPage(template, this, true);
-                if (result != entity.Content)
-                {
-                    entity.Content = result;
-                    //re-persist it... though we don't really care about the templates in the db do we??!!
-                    dto.Design = result;
-                    Database.Update(dto);
-                }
-            }
+            SaveFile(template, dto);
 
             template.ResetDirtyProperties();
 
@@ -255,7 +208,12 @@ namespace Umbraco.Core.Persistence.Repositories
                 {
                     entity.Path = string.Concat(parent.Path, ",", entity.Id);
                 }
-
+                else
+                {
+                    //this means that the master template has been removed, so we need to reset the template's
+                    //path to be at the root
+                    entity.Path = string.Concat("-1,", entity.Id);
+                }
             }
 
             //Get TemplateDto from db to get the Primary key of the entity
@@ -274,35 +232,49 @@ namespace Umbraco.Core.Persistence.Repositories
             template.IsMasterTemplate = axisDefs.Any(x => x.ParentId == dto.NodeId);
 
             //now do the file work
-
-            if (DetermineTemplateRenderingEngine(entity) == RenderingEngine.Mvc)
-            {
-                var result = _viewHelper.UpdateViewFile(entity, originalAlias);
-                if (result != entity.Content)
-                {
-                    entity.Content = result;
-                    //re-persist it... though we don't really care about the templates in the db do we??!!
-                    dto.Design = result;
-                    Database.Update(dto);
-                }
-            }
-            else
-            {
-                var result = _masterPageHelper.UpdateMasterPageFile(entity, originalAlias, this);
-                if (result != entity.Content)
-                {
-                    entity.Content = result;
-                    //re-persist it... though we don't really care about the templates in the db do we??!!
-                    dto.Design = result;
-                    Database.Update(dto);
-                }
-            }
+            SaveFile((Template) entity, dto, originalAlias);
 
             entity.ResetDirtyProperties();
 
             // ensure that from now on, content is lazy-loaded
             if (template.GetFileContent == null)
                 template.GetFileContent = file => GetFileContent((Template) file, false);
+        }
+
+        private void SaveFile(Template template, TemplateDto dto, string originalAlias = null)
+        {
+            string content;
+
+            var templateOnDisk = template as TemplateOnDisk;
+            if (templateOnDisk != null && templateOnDisk.IsOnDisk)
+            {
+                // if "template on disk" load content from disk
+                content = _viewHelper.GetFileContents(template);
+            }
+            else
+            {
+                // else, create or write template.Content to disk
+                if (DetermineTemplateRenderingEngine(template) == RenderingEngine.Mvc)
+                {
+                    content = originalAlias == null
+                        ? _viewHelper.CreateView(template, true)
+                        : _viewHelper.UpdateViewFile(template, originalAlias);
+                }
+                else
+                {
+                    content = originalAlias == null
+                        ? _masterPageHelper.CreateMasterPage(template, this, true)
+                        : _masterPageHelper.UpdateMasterPageFile(template, originalAlias, this);
+                }
+            }
+
+            // once content has been set, "template on disk" are not "on disk" anymore
+            template.Content = content;
+            SetVirtualPath(template);
+
+            if (dto.Design == content) return;
+            dto.Design = content;
+            Database.Update(dto); // though... we don't care about the db value really??!!
         }
 
         protected override void PersistDeletedItem(ITemplate entity)
@@ -338,14 +310,16 @@ namespace Umbraco.Core.Persistence.Repositories
             {
                 var masterpageName = string.Concat(entity.Alias, ".master");
                 _masterpagesFileSystem.DeleteFile(masterpageName);
-            }         
+            }
+
+            entity.DeletedDate = DateTime.Now;
         }
 
         #endregion
 
         private IEnumerable<IUmbracoEntity> GetAxisDefinitions(params TemplateDto[] templates)
         {
-            //look up the simple template definitions that have a master template assigned, this is used 
+            //look up the simple template definitions that have a master template assigned, this is used
             // later to populate the template item's properties
             var childIdsSql = new Sql()
                 .Select("nodeId,alias,parentID")
@@ -354,7 +328,7 @@ namespace Umbraco.Core.Persistence.Repositories
                 .On<TemplateDto, NodeDto>(SqlSyntax, dto => dto.NodeId, dto => dto.NodeId)
                 //lookup axis's
                 .Where("umbracoNode." + SqlSyntax.GetQuotedColumnName("id") + " IN (@parentIds) OR umbracoNode.parentID IN (@childIds)",
-                    new {parentIds = templates.Select(x => x.NodeDto.ParentId), childIds = templates.Select(x => x.NodeId)});            
+                    new {parentIds = templates.Select(x => x.NodeDto.ParentId), childIds = templates.Select(x => x.NodeId)});
 
             var childIds = Database.Fetch<dynamic>(childIdsSql)
                 .Select(x => new UmbracoEntity
@@ -400,6 +374,50 @@ namespace Umbraco.Core.Persistence.Repositories
             return template;
         }
 
+        private void SetVirtualPath(ITemplate template)
+        {
+            var path = template.OriginalPath;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                // we need to discover the path
+                path = string.Concat(template.Alias, ".cshtml");
+                if (_viewsFileSystem.FileExists(path))
+                {
+                    template.VirtualPath = _viewsFileSystem.GetUrl(path);
+                    return;
+                }
+                path = string.Concat(template.Alias, ".vbhtml");
+                if (_viewsFileSystem.FileExists(path))
+                {
+                    template.VirtualPath = _viewsFileSystem.GetUrl(path);
+                    return;
+                }
+                path = string.Concat(template.Alias, ".master");
+                if (_masterpagesFileSystem.FileExists(path))
+                {
+                    template.VirtualPath = _masterpagesFileSystem.GetUrl(path);
+                    return;
+                }
+            }
+            else
+            {
+                // we know the path already
+                var ext = Path.GetExtension(path);
+                switch (ext)
+                {
+                    case ".cshtml":
+                    case ".vbhtml":
+                        template.VirtualPath = _viewsFileSystem.GetUrl(path);
+                        return;
+                    case ".master":
+                        template.VirtualPath = _masterpagesFileSystem.GetUrl(path);
+                        return;
+                }
+            }
+
+            template.VirtualPath = string.Empty; // file not found...
+        }
+
         private string GetFileContent(ITemplate template, bool init)
         {
             var path = template.OriginalPath;
@@ -427,20 +445,10 @@ namespace Umbraco.Core.Persistence.Repositories
                         return GetFileContent(template, _viewsFileSystem, path, init);
                     case ".master":
                         return GetFileContent(template, _masterpagesFileSystem, path, init);
-                    default:
-                        return string.Empty;
                 }
             }
 
-            var fsname = string.Concat(template.Alias, ".cshtml");
-            if (_viewsFileSystem.FileExists(fsname))
-                return GetFileContent(template, _viewsFileSystem, fsname, init);
-            fsname = string.Concat(template.Alias, ".vbhtml");
-            if (_viewsFileSystem.FileExists(fsname))
-                return GetFileContent(template, _viewsFileSystem, fsname, init);
-            fsname = string.Concat(template.Alias, ".master");
-            if (_masterpagesFileSystem.FileExists(fsname))
-                return GetFileContent(template, _masterpagesFileSystem, fsname, init);
+            template.VirtualPath = string.Empty; // file not found...
             return string.Empty;
         }
 
@@ -475,130 +483,150 @@ namespace Umbraco.Core.Persistence.Repositories
             }
         }
 
+        public Stream GetFileContentStream(string filepath)
+        {
+            var fs = GetFileSystem(filepath);
+            if (fs.FileExists(filepath) == false) return null;
+
+            try
+            {
+                return GetFileSystem(filepath).OpenFile(filepath);
+            }
+            catch
+            {
+                return null; // deal with race conds
+            }
+        }
+
+        public void SetFileContent(string filepath, Stream content)
+        {
+            GetFileSystem(filepath).AddFile(filepath, content, true);
+        }
+
+        public long GetFileSize(string filepath)
+        {
+            return GetFileSystem(filepath).GetSize(filepath);
+        }
+
+        private IFileSystem GetFileSystem(string filepath)
+        {
+            var ext = Path.GetExtension(filepath);
+            IFileSystem fs;
+            switch (ext)
+            {
+                case ".cshtml":
+                case ".vbhtml":
+                    fs = _viewsFileSystem;
+                    break;
+                case ".master":
+                    fs = _masterpagesFileSystem;
+                    break;
+                default:
+                    throw new Exception("Unsupported extension " + ext + ".");
+            }
+            return fs;
+        }
+
         #region Implementation of ITemplateRepository
 
         public ITemplate Get(string alias)
         {
-            var sql = GetBaseQuery(false).Where<TemplateDto>(x => x.Alias == alias);
-
-            var dto = Database.Fetch<TemplateDto, NodeDto>(sql).FirstOrDefault();
-
-            if (dto == null)
-                return null;
-
-            return MapFromDto(dto, GetAxisDefinitions(dto).ToArray());
+            return GetAll(alias).FirstOrDefault();
         }
 
         public IEnumerable<ITemplate> GetAll(params string[] aliases)
         {
-            var sql = GetBaseQuery(false);
+            //We must call the base (normal) GetAll method
+            // which is cached. This is a specialized method and unfortunatley with the params[] it
+            // overlaps with the normal GetAll method.
+            if (aliases.Any() == false) return base.GetAll();
 
-            if (aliases.Any())
-            {
-                sql.Where("cmsTemplate.alias IN (@aliases)", new {aliases = aliases});
-            }
-
-            var dtos = Database.Fetch<TemplateDto, NodeDto>(sql).ToArray();
-            if (dtos.Length == 0) return Enumerable.Empty<ITemplate>();
-
-            var axisDefos = GetAxisDefinitions(dtos).ToArray();
-            return dtos.Select(x => MapFromDto(x, axisDefos));
+            //return from base.GetAll, this is all cached
+            return base.GetAll().Where(x => aliases.InvariantContains(x.Alias));
         }
 
         public IEnumerable<ITemplate> GetChildren(int masterTemplateId)
         {
-            var sql = GetBaseQuery(false);         
-            if (masterTemplateId <= 0)
-            {
-                sql.Where<NodeDto>(x => x.ParentId <= 0);
-            }
-            else
-            {
-                sql.Where<NodeDto>(x => x.ParentId == masterTemplateId);
-            }
+            //return from base.GetAll, this is all cached
+            var all = base.GetAll().ToArray();
 
-            var dtos = Database.Fetch<TemplateDto, NodeDto>(sql).ToArray();
-            if (dtos.Length == 0) return Enumerable.Empty<ITemplate>();
+            if (masterTemplateId <= 0) return all.Where(x => x.MasterTemplateAlias.IsNullOrWhiteSpace());
 
-            var axisDefos = GetAxisDefinitions(dtos).ToArray();
-            return dtos.Select(x => MapFromDto(x, axisDefos));
+            var parent = all.FirstOrDefault(x => x.Id == masterTemplateId);
+            if (parent == null) return Enumerable.Empty<ITemplate>();
+
+            var children = all.Where(x => x.MasterTemplateAlias.InvariantEquals(parent.Alias));
+            return children;
         }
 
         public IEnumerable<ITemplate> GetChildren(string alias)
         {
-            var sql = GetBaseQuery(false);
-            if (alias.IsNullOrWhiteSpace())
-            {
-                sql.Where<NodeDto>(x => x.ParentId <= 0);
-            }
-            else
-            {
-                //unfortunately SQLCE doesn't support scalar subqueries in the where clause, otherwise we could have done this
-                // in a single query, now we have to lookup the path to acheive the same thing
-                var parent = Database.ExecuteScalar<int?>(new Sql().Select("nodeId").From<TemplateDto>(SqlSyntax).Where<TemplateDto>(dto => dto.Alias == alias));
-                if (parent.HasValue == false) return Enumerable.Empty<ITemplate>();
-
-                sql.Where<NodeDto>(x => x.ParentId == parent.Value);
-            }
-
-            var dtos = Database.Fetch<TemplateDto, NodeDto>(sql).ToArray();
-            if (dtos.Length == 0) return Enumerable.Empty<ITemplate>();
-
-            var axisDefos = GetAxisDefinitions(dtos).ToArray();
-            return dtos.Select(x => MapFromDto(x, axisDefos));
+            //return from base.GetAll, this is all cached
+            return base.GetAll().Where(x => alias.IsNullOrWhiteSpace()
+                ? x.MasterTemplateAlias.IsNullOrWhiteSpace()
+                : x.MasterTemplateAlias.InvariantEquals(alias));
         }
 
         public IEnumerable<ITemplate> GetDescendants(int masterTemplateId)
         {
-            var sql = GetBaseQuery(false);
+            //return from base.GetAll, this is all cached
+            var all = base.GetAll().ToArray();
+            var descendants = new List<ITemplate>();
             if (masterTemplateId > 0)
             {
-                //unfortunately SQLCE doesn't support scalar subqueries in the where clause, otherwise we could have done this
-                // in a single query, now we have to lookup the path to acheive the same thing
-                var path = Database.ExecuteScalar<string>(
-                    new Sql().Select(SqlSyntax.GetQuotedColumnName("path"))
-                        .From<TemplateDto>(SqlSyntax)
-                        .InnerJoin<NodeDto>(SqlSyntax)
-                        .On<TemplateDto, NodeDto>(SqlSyntax, dto => dto.NodeId, dto => dto.NodeId)
-                        .Where<NodeDto>(dto => dto.NodeId == masterTemplateId));
-
-                if (path.IsNullOrWhiteSpace()) return Enumerable.Empty<ITemplate>();
-
-                sql.Where(@"(umbracoNode." + SqlSyntax.GetQuotedColumnName("path") + @" LIKE @query)", new { query = path + ",%" });
+                var parent = all.FirstOrDefault(x => x.Id == masterTemplateId);
+                if (parent == null) return Enumerable.Empty<ITemplate>();
+                //recursively add all children with a level
+                AddChildren(all, descendants, parent.Alias);
+            }
+            else
+            {
+                descendants.AddRange(all.Where(x => x.MasterTemplateAlias.IsNullOrWhiteSpace()));
+                foreach (var parent in descendants)
+                {
+                    //recursively add all children with a level
+                    AddChildren(all, descendants, parent.Alias);
+                }
             }
 
-            sql.OrderBy("umbracoNode." + SqlSyntax.GetQuotedColumnName("level"));
-
-            var dtos = Database.Fetch<TemplateDto, NodeDto>(sql).ToArray();
-            if (dtos.Length == 0) return Enumerable.Empty<ITemplate>();
-
-            var axisDefos = GetAxisDefinitions(dtos).ToArray();
-            return dtos.Select(x => MapFromDto(x, axisDefos));
-
+            //return the list - it will be naturally ordered by level
+            return descendants;
         }
 
         public IEnumerable<ITemplate> GetDescendants(string alias)
         {
-            var sql = GetBaseQuery(false);
+            var all = base.GetAll().ToArray();
+            var descendants = new List<ITemplate>();
             if (alias.IsNullOrWhiteSpace() == false)
             {
-                //unfortunately SQLCE doesn't support scalar subqueries in the where clause, otherwise we could have done this
-                // in a single query, now we have to lookup the path to acheive the same thing
-                var path = Database.ExecuteScalar<string>(
-                    "SELECT umbracoNode.path FROM cmsTemplate INNER JOIN umbracoNode ON cmsTemplate.nodeId = umbracoNode.id WHERE cmsTemplate.alias = @alias", new { alias = alias });
-
-                if (path.IsNullOrWhiteSpace()) return Enumerable.Empty<ITemplate>();
-
-                sql.Where(@"(umbracoNode." + SqlSyntax.GetQuotedColumnName("path") + @" LIKE @query)", new {query = path + ",%" });
+                var parent = all.FirstOrDefault(x => x.Alias.InvariantEquals(alias));
+                if (parent == null) return Enumerable.Empty<ITemplate>();
+                //recursively add all children
+                AddChildren(all, descendants, parent.Alias);
             }
+            else
+            {
+                descendants.AddRange(all.Where(x => x.MasterTemplateAlias.IsNullOrWhiteSpace()));
+                foreach (var parent in descendants)
+                {
+                    //recursively add all children with a level
+                    AddChildren(all, descendants, parent.Alias);
+                }
+            }
+            //return the list - it will be naturally ordered by level
+            return descendants;
+        }
 
-            sql.OrderBy("umbracoNode." + SqlSyntax.GetQuotedColumnName("level"));
-
-            var dtos = Database.Fetch<TemplateDto, NodeDto>(sql).ToArray();
-            if (dtos.Length == 0) return Enumerable.Empty<ITemplate>();
-
-            var axisDefos = GetAxisDefinitions(dtos).ToArray();
-            return dtos.Select(x => MapFromDto(x, axisDefos));
+        private void AddChildren(ITemplate[] all, List<ITemplate> descendants, string masterAlias)
+        {
+            var c = all.Where(x => x.MasterTemplateAlias.InvariantEquals(masterAlias)).ToArray();
+            descendants.AddRange(c);
+            if (c.Any() == false) return;
+            //recurse through all children
+            foreach (var child in c)
+            {
+                AddChildren(all, descendants, child.Alias);
+            }
         }
 
         /// <summary>
@@ -608,24 +636,24 @@ namespace Umbraco.Core.Persistence.Repositories
         /// <returns></returns>
         [Obsolete("Use GetDescendants instead")]
         public TemplateNode GetTemplateNode(string alias)
-        {            
+        {
             //first get all template objects
-            var allTemplates = GetAll().ToArray();
+            var allTemplates = base.GetAll().ToArray();
 
-            var selfTemplate = allTemplates.SingleOrDefault(x => x.Alias == alias);
+            var selfTemplate = allTemplates.SingleOrDefault(x => x.Alias.InvariantEquals(alias));
             if (selfTemplate == null)
             {
                 return null;
             }
-            
+
             var top = selfTemplate;
             while (top.MasterTemplateAlias.IsNullOrWhiteSpace() == false)
             {
-                top = allTemplates.Single(x => x.Alias == top.MasterTemplateAlias);
+                top = allTemplates.Single(x => x.Alias.InvariantEquals(top.MasterTemplateAlias));
             }
 
             var topNode = new TemplateNode(allTemplates.Single(x => x.Id == top.Id));
-            var childTemplates = allTemplates.Where(x => x.MasterTemplateAlias == top.Alias);
+            var childTemplates = allTemplates.Where(x => x.MasterTemplateAlias.InvariantEquals(top.Alias));
             //This now creates the hierarchy recursively
             topNode.Children = CreateChildren(topNode, childTemplates, allTemplates);
 
@@ -633,10 +661,11 @@ namespace Umbraco.Core.Persistence.Repositories
             return FindTemplateInTree(topNode, alias);
         }
 
+        [Obsolete("Only used by obsolete code")]
         private static TemplateNode WalkTree(TemplateNode current, string alias)
         {
             //now walk the tree to find the node
-            if (current.Template.Alias == alias)
+            if (current.Template.Alias.InvariantEquals(alias))
             {
                 return current;
             }
@@ -667,29 +696,31 @@ namespace Umbraco.Core.Persistence.Repositories
         }
 
         /// <summary>
-        /// This checks what the default rendering engine is set in config but then also ensures that there isn't already 
-        /// a template that exists in the opposite rendering engine's template folder, then returns the appropriate 
+        /// This checks what the default rendering engine is set in config but then also ensures that there isn't already
+        /// a template that exists in the opposite rendering engine's template folder, then returns the appropriate
         /// rendering engine to use.
-        /// </summary> 
+        /// </summary>
         /// <returns></returns>
         /// <remarks>
         /// The reason this is required is because for example, if you have a master page file already existing under ~/masterpages/Blah.aspx
-        /// and then you go to create a template in the tree called Blah and the default rendering engine is MVC, it will create a Blah.cshtml 
-        /// empty template in ~/Views. This means every page that is using Blah will go to MVC and render an empty page. 
-        /// This is mostly related to installing packages since packages install file templates to the file system and then create the 
+        /// and then you go to create a template in the tree called Blah and the default rendering engine is MVC, it will create a Blah.cshtml
+        /// empty template in ~/Views. This means every page that is using Blah will go to MVC and render an empty page.
+        /// This is mostly related to installing packages since packages install file templates to the file system and then create the
         /// templates in business logic. Without this, it could cause the wrong rendering engine to be used for a package.
         /// </remarks>
         public RenderingEngine DetermineTemplateRenderingEngine(ITemplate template)
         {
             var engine = _templateConfig.DefaultRenderingEngine;
-
-            if (template.Content.IsNullOrWhiteSpace() == false && MasterPageHelper.IsMasterPageSyntax(template.Content))
+            var viewHelper = new ViewHelper(_viewsFileSystem);
+            if (viewHelper.ViewExists(template) == false)
             {
-                //there is a design but its definitely a webforms design
-                return RenderingEngine.WebForms;
+                if (template.Content.IsNullOrWhiteSpace() == false && MasterPageHelper.IsMasterPageSyntax(template.Content))
+                {
+                    //there is a design but its definitely a webforms design and we haven't got a MVC view already for it
+                    return RenderingEngine.WebForms;
+                }
             }
 
-            var viewHelper = new ViewHelper(_viewsFileSystem);
             var masterPageHelper = new MasterPageHelper(_masterpagesFileSystem);
 
             switch (engine)
@@ -766,7 +797,7 @@ namespace Umbraco.Core.Persistence.Repositories
 
                 //get this node's children
                 var local = childTemplate;
-                var kids = allTemplates.Where(x => x.MasterTemplateAlias == local.Alias);
+                var kids = allTemplates.Where(x => x.MasterTemplateAlias.InvariantEquals(local.Alias));
 
                 //recurse
                 child.Children = CreateChildren(child, kids, allTemplates);
@@ -782,7 +813,7 @@ namespace Umbraco.Core.Persistence.Repositories
         /// <param name="template"></param>
         private void EnsureValidAlias(ITemplate template)
         {
-            //ensure unique alias 
+            //ensure unique alias
             template.Alias = template.Alias.ToCleanString(CleanStringType.UnderscoreAlias);
 
             if (template.Alias.Length > 100)
@@ -796,7 +827,7 @@ namespace Umbraco.Core.Persistence.Repositories
 
         private bool AliasAlreadExists(ITemplate template)
         {
-            var sql = GetBaseQuery(true).Where<TemplateDto>(x => x.Alias == template.Alias && x.NodeId != template.Id);
+            var sql = GetBaseQuery(true).Where<TemplateDto>(x => x.Alias.InvariantEquals(template.Alias) && x.NodeId != template.Id);
             var count = Database.ExecuteScalar<int>(sql);
             return count > 0;
         }

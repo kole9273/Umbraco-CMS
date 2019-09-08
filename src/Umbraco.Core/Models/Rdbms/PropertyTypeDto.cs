@@ -10,12 +10,6 @@ namespace Umbraco.Core.Models.Rdbms
     [ExplicitColumns]
     internal class PropertyTypeDto
     {
-        public PropertyTypeDto()
-        {
-            //by default always create a new guid
-            UniqueId = Guid.NewGuid();
-        }
-
         [Column("id")]
         [PrimaryKeyColumn(IdentitySeed = 50)]
         public int Id { get; set; }
@@ -33,6 +27,7 @@ namespace Umbraco.Core.Models.Rdbms
         [ForeignKey(typeof(PropertyTypeGroupDto))]
         public int? PropertyTypeGroupId { get; set; }
 
+        [Index(IndexTypes.NonClustered, Name = "IX_cmsPropertyTypeAlias")]
         [Column("Alias")]
         public string Alias { get; set; }
 

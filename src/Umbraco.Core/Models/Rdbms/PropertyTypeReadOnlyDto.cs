@@ -45,11 +45,18 @@ namespace Umbraco.Core.Models.Rdbms
         [Column("viewOnProfile")]
         public bool ViewOnProfile { get; set; }
 
+        [Column("isSensitive")]
+        public bool IsSensitive { get; set; }
+
         /* cmsDataType */
         [Column("propertyEditorAlias")]
         public string PropertyEditorAlias { get; set; }
 
         [Column("dbType")]
         public string DbType { get; set; }
+
+        [Column("UniqueID")]
+        public Guid UniqueId { get; set; }
+
     }
 }

@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Web;
 using System.Web.Script.Serialization;
 using System.Web.UI;
+using Semver;
 using umbraco.BusinessLogic;
 using Umbraco.Core;
 using Umbraco.Core.Configuration;
@@ -30,7 +31,6 @@ namespace Umbraco.Web.Install
             _umbContext = umbContext;
         }
 
-
         /// <summary>
         /// Get the installer steps
         /// </summary>
@@ -42,15 +42,16 @@ namespace Umbraco.Web.Install
         {
             return new List<InstallSetupStep>
             {
-                new NewInstallStep(_umbContext.Application),
-                new UpgradeStep(),
+                new NewInstallStep(_umbContext.HttpContext, _umbContext.Application),
+                new UpgradeStep(_umbContext.Application),
                 new FilePermissionsStep(),
                 new MajorVersion7UpgradeReport(_umbContext.Application),
                 new Version73FileCleanup(_umbContext.HttpContext, _umbContext.Application.ProfilingLogger.Logger),
                 new DatabaseConfigureStep(_umbContext.Application),
+                new ConfigureMachineKey(_umbContext.Application),
                 new DatabaseInstallStep(_umbContext.Application),
                 new DatabaseUpgradeStep(_umbContext.Application),
-                new StarterKitDownloadStep(_umbContext.Application),
+                new StarterKitDownloadStep(_umbContext.Application, _umbContext.Security, _umbContext.HttpContext),
                 new StarterKitInstallStep(_umbContext.Application, _umbContext.HttpContext),
                 new StarterKitCleanupStep(_umbContext.Application),
                 new SetUmbracoVersionStep(_umbContext.Application, _umbContext.HttpContext),
@@ -103,9 +104,9 @@ namespace Umbraco.Web.Install
                 string userAgent = _umbContext.HttpContext.Request.UserAgent;
 
                 // Check for current install Id
-                Guid installId = Guid.NewGuid();
-                StateHelper.Cookies.Cookie installCookie = new StateHelper.Cookies.Cookie("umb_installId", 1);
-                if (!String.IsNullOrEmpty(installCookie.GetValue()))
+                var installId = Guid.NewGuid();
+                var installCookie = new StateHelper.Cookies.Cookie("umb_installId", 1);
+                if (string.IsNullOrEmpty(installCookie.GetValue()) == false)
                 {
                     if (Guid.TryParse(installCookie.GetValue(), out installId))
                     {
@@ -116,13 +117,13 @@ namespace Umbraco.Web.Install
                 }
                 installCookie.SetValue(installId.ToString());
 
-                string dbProvider = String.Empty;
-                if (!IsBrandNewInstall)
+                string dbProvider = string.Empty;
+                if (IsBrandNewInstall == false)
                     dbProvider = ApplicationContext.Current.DatabaseContext.DatabaseProvider.ToString();
 
                 org.umbraco.update.CheckForUpgrade check = new org.umbraco.update.CheckForUpgrade();
                 check.Install(installId,
-                    !IsBrandNewInstall,
+                    IsBrandNewInstall == false,
                     isCompleted,
                     DateTime.Now,
                     UmbracoVersion.Current.Major,
@@ -135,7 +136,7 @@ namespace Umbraco.Web.Install
             }
             catch (Exception ex)
             {
-
+                LogHelper.Error<InstallHelper>("An error occurred in InstallStatus trying to check upgrades", ex);
             }
         }
 
@@ -146,7 +147,7 @@ namespace Umbraco.Web.Install
         {
             get
             {
-                var databaseSettings = ConfigurationManager.ConnectionStrings[GlobalSettings.UmbracoConnectionName];
+                var databaseSettings = ConfigurationManager.ConnectionStrings[Constants.System.UmbracoConnectionName];
                 if (GlobalSettings.ConfigurationStatus.IsNullOrWhiteSpace()
                     && _umbContext.Application.DatabaseContext.IsConnectionStringConfigured(databaseSettings) == false)
                 {

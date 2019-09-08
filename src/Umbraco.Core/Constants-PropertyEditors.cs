@@ -11,7 +11,7 @@ namespace Umbraco.Core
         {
             /// <summary>
             /// Used to prefix generic properties that are internal content properties
-            /// </summary>            
+            /// </summary>
             public const string InternalGenericPropertiesPrefix = "_umb_";
 
             /// <summary>
@@ -42,10 +42,14 @@ namespace Umbraco.Core
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string ContentPicker = "158AA029-24ED-4948-939E-C3DA209E5FBA";
 
+            
+            [Obsolete("This is an obsoleted content picker, use ContentPicker2Alias instead")]
+            public const string ContentPickerAlias = "Umbraco.ContentPickerAlias";
+
             /// <summary>
             /// Alias for the Content Picker datatype.
             /// </summary>
-            public const string ContentPickerAlias = "Umbraco.ContentPickerAlias";
+            public const string ContentPicker2Alias = "Umbraco.ContentPicker2";
 
             /// <summary>
             /// Guid for the Date datatype.
@@ -74,7 +78,7 @@ namespace Umbraco.Core
             /// </summary>
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string DictionaryPicker = "17B70066-F764-407D-AB05-3717F1E1C513";
-            
+
             /// <summary>
             /// Guid for the Dropdown list datatype.
             /// </summary>
@@ -118,6 +122,11 @@ namespace Umbraco.Core
             /// Alias for the Dropdown list, publishing keys datatype.
             /// </summary>
             public const string DropdownlistPublishingKeysAlias = "Umbraco.DropdownlistPublishingKeys";
+            
+            /// <summary>
+            /// Alias for the "new" Dropdown list, that replaces the old four deprecated ones and works as other list based property editors
+            /// </summary>
+            public const string DropDownListFlexibleAlias = "Umbraco.DropDown.Flexible";
 
             /// <summary>
             /// Guid for the Folder browser datatype.
@@ -159,6 +168,11 @@ namespace Umbraco.Core
             public const string IntegerAlias = "Umbraco.Integer";
 
             /// <summary>
+            /// Alias for the Decimal datatype.
+            /// </summary>
+            public const string DecimalAlias = "Umbraco.Decimal";
+
+            /// <summary>
             /// Alias for the listview datatype.
             /// </summary>
             public const string ListViewAlias = "Umbraco.ListView";
@@ -187,11 +201,15 @@ namespace Umbraco.Core
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string MediaPicker = "EAD69342-F06D-4253-83AC-28000225583B";
 
+            [Obsolete("This is an obsoleted picker, use MediaPicker2Alias instead")]
+            public const string MediaPickerAlias = "Umbraco.MediaPicker";
+
             /// <summary>
             /// Alias for the Media Picker datatype.
             /// </summary>
-            public const string MediaPickerAlias = "Umbraco.MediaPicker";
+            public const string MediaPicker2Alias = "Umbraco.MediaPicker2";
 
+            [Obsolete("This is an obsoleted picker, use MediaPicker2Alias instead")]
             public const string MultipleMediaPickerAlias = "Umbraco.MultipleMediaPicker";
 
             /// <summary>
@@ -200,26 +218,32 @@ namespace Umbraco.Core
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string MemberPicker = "39F533E4-0551-4505-A64B-E0425C5CE775";
 
+            [Obsolete("This is an obsoleted picker, use MemberPicker2Alias instead")]
+            public const string MemberPickerAlias = "Umbraco.MemberPicker";
+
             /// <summary>
             /// Alias for the Member Picker datatype.
             /// </summary>
-            public const string MemberPickerAlias = "Umbraco.MemberPicker";
+            public const string MemberPicker2Alias = "Umbraco.MemberPicker2";
 
             /// <summary>
             /// Alias for the Member Group Picker datatype.
             /// </summary>
             public const string MemberGroupPickerAlias = "Umbraco.MemberGroupPicker";
-
+            
             /// <summary>
             /// Guid for the Multi-Node Tree Picker datatype
             /// </summary>
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string MultiNodeTreePicker = "7E062C13-7C41-4AD9-B389-41D88AEEF87C";
 
+            [Obsolete("This is an obsoleted picker, use MultiNodeTreePicker2Alias instead")]
+            public const string MultiNodeTreePickerAlias = "Umbraco.MultiNodeTreePicker";
+
             /// <summary>
             /// Alias for the Multi-Node Tree Picker datatype
             /// </summary>
-            public const string MultiNodeTreePickerAlias = "Umbraco.MultiNodeTreePicker";
+            public const string MultiNodeTreePicker2Alias = "Umbraco.MultiNodeTreePicker2";
 
             /// <summary>
             /// Guid for the Multiple Textstring datatype.
@@ -270,11 +294,14 @@ namespace Umbraco.Core
             /// </summary>
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string RelatedLinks = "71B8AD1A-8DC2-425C-B6B8-FAA158075E63";
+            
+            [Obsolete("This is an obsoleted picker, use RelatedLinks2Alias instead")]
+            public const string RelatedLinksAlias = "Umbraco.RelatedLinks";
 
             /// <summary>
-            /// Alias for the Related Links datatype.
+            /// Alias for the Related Links property editor.
             /// </summary>
-            public const string RelatedLinksAlias = "Umbraco.RelatedLinks";
+            public const string RelatedLinks2Alias = "Umbraco.RelatedLinks2";
 
             /// <summary>
             /// Guid for the Slider datatype.
@@ -310,13 +337,13 @@ namespace Umbraco.Core
             public const string TextboxAlias = "Umbraco.Textbox";
 
             /// <summary>
-            /// Guid for the Textbox multiple datatype.
+            /// Guid for the Textarea datatype.
             /// </summary>
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string TextboxMultiple = "67DB8357-EF57-493E-91AC-936D305E0F2A";
 
             /// <summary>
-            /// Alias for the Textbox multiple datatype.
+            /// Alias for the Textarea datatype.
             /// </summary>
             public const string TextboxMultipleAlias = "Umbraco.TextboxMultiple";
 
@@ -347,7 +374,7 @@ namespace Umbraco.Core
             /// </summary>
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string UltimatePicker = "CDBF0B5D-5CB2-445F-BC12-FCAAEC07CF2C";
-            
+
             /// <summary>
             /// Guid for the UltraSimpleEditor datatype.
             /// </summary>
@@ -364,7 +391,7 @@ namespace Umbraco.Core
             /// </summary>
             [Obsolete("GUIDs are no longer used to reference Property Editors, use the Alias constant instead. This will be removed in future versions")]
             public const string UmbracoUserControlWrapper = "D15E1281-E456-4B24-AA86-1DDA3E4299D5";
-            
+
             /// <summary>
             /// Guid for the Upload field datatype.
             /// </summary>
@@ -414,6 +441,20 @@ namespace Umbraco.Core
             /// Alias for the email address property editor
             /// </summary>
             public const string EmailAddressAlias = "Umbraco.EmailAddress";
+
+            /// <summary>
+            /// Alias for the nested content property editor.
+            /// </summary>
+            public const string NestedContentAlias = "Umbraco.NestedContent";
+
+            public static class PreValueKeys
+            {
+                /// <summary>
+                /// Pre-value name used to indicate a field that can be used to override the database field to which data for the associated
+                /// property is saved
+                /// </summary>
+                public const string DataValueType = "umbracoDataValueType";
+            }
         }
 	}
 }

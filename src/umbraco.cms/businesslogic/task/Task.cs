@@ -131,14 +131,14 @@ namespace umbraco.cms.businesslogic.task
             set
             {
                 _user = value;
-                TaskEntity.OwnerUserId = _user.Id;
+                TaskEntity.AssigneeUserId = _user.Id;
             }
         }
 
         /// <summary>
-        /// Gets the SQL helper.
+        /// Unused, please do not use
         /// </summary>
-        /// <value>The SQL helper.</value>
+        [Obsolete("Obsolete, For querying the database use the new UmbracoDatabase object ApplicationContext.Current.DatabaseContext.Database", false)]
         protected static ISqlHelper SqlHelper
         {
             get { return Application.SqlHelper; }

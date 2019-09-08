@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Umbraco.Core.Cache;
 using Umbraco.Core.Logging;
 using Umbraco.Core.Models;
 using Umbraco.Core.Models.EntityBase;
@@ -18,25 +19,13 @@ namespace Umbraco.Core.Persistence.Repositories
     /// </summary>
     internal class LanguageRepository : PetaPocoRepositoryBase<int, ILanguage>, ILanguageRepository
     {
-        public LanguageRepository(IDatabaseUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax)
+        public LanguageRepository(IScopeUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax)
             : base(work, cache, logger, sqlSyntax)
-        {
-            //Custom cache options for better performance
-            _cacheOptions = new RepositoryCacheOptions
-            {
-                GetAllCacheAllowZeroCount = true,
-                GetAllCacheValidateCount = false
-            };
-        }
+        { }
 
-        private readonly RepositoryCacheOptions _cacheOptions;
-
-        /// <summary>
-        /// Returns the repository cache options
-        /// </summary>
-        protected override RepositoryCacheOptions RepositoryCacheOptions
+        protected override IRepositoryCachePolicy<ILanguage, int> CreateCachePolicy(IRuntimeCacheProvider runtimeCache)
         {
-            get { return _cacheOptions; }
+            return new FullDataSetRepositoryCachePolicy<ILanguage, int>(runtimeCache, GetEntityId, /*expires:*/ false);
         }
 
         #region Overrides of RepositoryBase<int,Language>
@@ -135,8 +124,8 @@ namespace Umbraco.Core.Persistence.Repositories
             entity.ResetDirtyProperties();
 
             //Clear the cache entries that exist by key/iso
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.IsoCode));
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.CultureName));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.IsoCode));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.CultureName));
         }
 
         protected override void PersistDeletedItem(ILanguage entity)
@@ -144,8 +133,8 @@ namespace Umbraco.Core.Persistence.Repositories
             base.PersistDeletedItem(entity);
 
             //Clear the cache entries that exist by key/iso
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.IsoCode));
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.CultureName));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.IsoCode));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<ILanguage>(entity.CultureName));
         }
 
         #endregion
@@ -159,16 +148,14 @@ namespace Umbraco.Core.Persistence.Repositories
 
         public ILanguage GetByCultureName(string cultureName)
         {
-            //use the underlying GetAll which will force cache all domains
+            //use the underlying GetAll which will force cache all languages
             return GetAll().FirstOrDefault(x => x.CultureName.InvariantEquals(cultureName));
         }
 
         public ILanguage GetByIsoCode(string isoCode)
         {
-            //use the underlying GetAll which will force cache all domains
+            //use the underlying GetAll which will force cache all languages
             return GetAll().FirstOrDefault(x => x.IsoCode.InvariantEquals(isoCode));
         }
-
-   
     }
 }

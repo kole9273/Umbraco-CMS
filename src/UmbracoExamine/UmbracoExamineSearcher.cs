@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Security;
 using System.Web;
+using System.Web.Compilation;
 using Examine;
 using Examine.LuceneEngine.Config;
 using Examine.Providers;
@@ -15,6 +16,7 @@ using Examine.LuceneEngine;
 using Examine.LuceneEngine.Providers;
 using Examine.LuceneEngine.SearchCriteria;
 using Lucene.Net.Analysis;
+using Umbraco.Core.Logging;
 using UmbracoExamine.LocalStorage;
 
 
@@ -49,44 +51,9 @@ namespace UmbracoExamine
         /// </summary>
         public override string Name
         {
-            get
-            {
-                return _name;
-            }
+            get { return _name; }
         }
-
-
-        public override void Initialize(string name, System.Collections.Specialized.NameValueCollection config)
-        {
-            if (name == null) throw new ArgumentNullException("name");
-
-            //ensure name is set
-            _name = name;
-
-            //We need to check if we actually can initialize, if not then don't continue
-            if (CanInitialize() == false)
-            {
-                return;
-            }
-
-            base.Initialize(name, config);
-
-            if (config != null && config["useTempStorage"] != null)
-            {
-                //Use the temp storage directory which will store the index in the local/codegen folder, this is useful
-                // for websites that are running from a remove file server and file IO latency becomes an issue
-                var attemptUseTempStorage = config["useTempStorage"].TryConvertTo<LocalStorageType>();
-                if (attemptUseTempStorage)
-                {
-                    var indexSet = IndexSets.Instance.Sets[IndexSetName];
-                    var configuredPath = indexSet.IndexPath;
-                    var codegenPath = HttpRuntime.CodegenDir;
-                    _localTempPath = Path.Combine(codegenPath, configuredPath.TrimStart('~', '/').Replace("/", "\\"));
-                    _localStorageType = attemptUseTempStorage.Result;
-                }
-            }
-        }
-
+        
         /// <summary>
         /// Constructor to allow for creating an indexer at runtime
         /// </summary>
@@ -103,13 +70,79 @@ namespace UmbracoExamine
         /// </summary>
         /// <param name="luceneDirectory"></param>
         /// <param name="analyzer"></param>
-
         public UmbracoExamineSearcher(Lucene.Net.Store.Directory luceneDirectory, Analyzer analyzer)
             : base(luceneDirectory, analyzer)
         {
         }
 
+        /// <summary>
+        /// Creates an NRT searcher
+        /// </summary>
+        /// <param name="writer"></param>
+        /// <param name="analyzer"></param>
+        public UmbracoExamineSearcher(IndexWriter writer, Analyzer analyzer) 
+            : base(writer, analyzer)
+        {
+        }
+
         #endregion
+
+        public override void Initialize(string name, System.Collections.Specialized.NameValueCollection config)
+        {
+            if (name == null) throw new ArgumentNullException("name");
+
+            //ensure name is set
+            _name = name;
+
+            //We need to check if we actually can initialize, if not then don't continue
+            if (CanInitialize() == false)
+            {
+                return;
+            }
+
+            base.Initialize(name, config);
+
+            //NOTES: useTempStorage is obsolete, tempStorageDirectory is obsolete, both have been superceded by Examine Core's IDirectoryFactory
+            //       tempStorageDirectory never actually got finished in Umbraco Core but accidentally got shipped (it's only enabled on the searcher
+            //       and not the indexer). So this whole block is just legacy
+
+            //detect if a dir factory has been specified, if so then useTempStorage will not be used (deprecated)
+            if (config != null && config["directoryFactory"] == null && config["useTempStorage"] != null)
+            {
+                //Use the temp storage directory which will store the index in the local/codegen folder, this is useful
+                // for websites that are running from a remove file server and file IO latency becomes an issue
+                var attemptUseTempStorage = config["useTempStorage"].TryConvertTo<LocalStorageType>();
+                if (attemptUseTempStorage)
+                {
+                    //this is the default
+                    ILocalStorageDirectory localStorageDir = new CodeGenLocalStorageDirectory();
+                    if (config["tempStorageDirectory"] != null)
+                    {
+                        //try to get the type
+                        var dirType = BuildManager.GetType(config["tempStorageDirectory"], false);
+                        if (dirType != null)
+                        {
+                            try
+                            {
+                                localStorageDir = (ILocalStorageDirectory)Activator.CreateInstance(dirType);
+                            }
+                            catch (Exception ex)
+                            {
+                                LogHelper.Error<UmbracoExamineSearcher>(
+                                    string.Format("Could not create a temp storage location of type {0}, reverting to use the " + typeof(CodeGenLocalStorageDirectory).FullName, dirType),
+                                    ex);
+                            }
+                        }
+                    }
+                    var indexSet = IndexSets.Instance.Sets[IndexSetName];
+                    var configuredPath = indexSet.IndexPath;
+                    var tempPath = localStorageDir.GetLocalStorageDirectory(config, configuredPath);
+                    if (tempPath == null) throw new InvalidOperationException("Could not resolve a temp location from the " + localStorageDir.GetType() + " specified");
+                    _localTempPath = tempPath.FullName;
+                    _localStorageType = attemptUseTempStorage.Result;
+                }
+            }
+        }
 
         /// <summary>
         /// Used for unit tests

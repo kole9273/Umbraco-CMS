@@ -16,7 +16,7 @@ function treeResource($q, $http, umbRequestHelper) {
     /** internal method to get the tree menu url */
     function getTreeMenuUrl(node) {
         if (!node.menuUrl) {
-            throw "No menuUrl property found on the tree node, cannot load menu";
+            return null;
         }
         return node.menuUrl;
     }
@@ -26,10 +26,16 @@ function treeResource($q, $http, umbRequestHelper) {
         
         /** Loads in the data to display the nodes menu */
         loadMenu: function (node) {
-              
-            return umbRequestHelper.resourcePromise(
-                $http.get(getTreeMenuUrl(node)),
-                "Failed to retrieve data for a node's menu " + node.id);
+            var treeMenuUrl = getTreeMenuUrl(node);
+            if (treeMenuUrl !== undefined && treeMenuUrl !== null && treeMenuUrl.length > 0) {
+                return umbRequestHelper.resourcePromise(
+                    $http.get(getTreeMenuUrl(node)),
+                    "Failed to retrieve data for a node's menu " + node.id);
+            } else {
+                return $q.reject({
+                    errorMsg: "No tree menu url defined for node " + node.id
+                });
+            }
         },
 
         /** Loads in the data to display the nodes for an application */
@@ -45,9 +51,14 @@ function treeResource($q, $http, umbRequestHelper) {
             if (!options.isDialog) {
                 options.isDialog = false;
             }
-          
+
             //create the query string for the tree request, these are the mandatory options:
             var query = "application=" + options.section + "&tree=" + options.tree + "&isDialog=" + options.isDialog;
+
+            //if you need to load a not initialized tree set this value to false - default is true
+            if (options.onlyinitialized) {
+                query += "&onlyInitialized=" + options.onlyinitialized;
+            }
 
             //the options can contain extra query string parameters
             if (options.queryString) {

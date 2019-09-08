@@ -11,6 +11,7 @@ using umbraco;
 
 namespace Umbraco.Web.Media
 {
+    [Obsolete("This is no longer used and will be removed in future versions")]
     public class ImageUrl
     {
         [Obsolete("Use TryGetImageUrl() instead")]
@@ -87,7 +88,7 @@ namespace Umbraco.Web.Media
 
         private static object GetContentFromCache(int nodeIdInt, string field)
         {
-            var content = ApplicationContext.Current.ApplicationCache.GetCacheItem<object>(
+            var content = ApplicationContext.Current.ApplicationCache.RuntimeCache.GetCacheItem<object>(
                 string.Format("{0}{1}_{2}", CacheKeys.ContentItemCacheKey, nodeIdInt.ToString(CultureInfo.InvariantCulture), field));            
             return content;
         }

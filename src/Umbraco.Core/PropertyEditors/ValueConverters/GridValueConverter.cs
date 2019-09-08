@@ -5,13 +5,15 @@ using System.Web;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Umbraco.Core.Configuration;
-using Umbraco.Core.Configuration.Grid;
 using Umbraco.Core.IO;
 using Umbraco.Core.Logging;
 using Umbraco.Core.Models.PublishedContent;
 
 namespace Umbraco.Core.PropertyEditors.ValueConverters
 {
+    /// <summary>
+    /// This ensures that the grid config is merged in with the front-end value
+    /// </summary>
     [DefaultPropertyValueConverter(typeof(JsonValueConverter))] //this shadows the JsonValueConverter
     [PropertyValueType(typeof(JToken))]
     [PropertyValueCache(PropertyCacheValue.All, PropertyCacheLevel.Content)]
@@ -41,8 +43,8 @@ namespace Umbraco.Core.PropertyEditors.ValueConverters
                     var gridConfig = UmbracoConfig.For.GridConfig(
                         ApplicationContext.Current.ProfilingLogger.Logger,
                         ApplicationContext.Current.ApplicationCache.RuntimeCache,
-                        new DirectoryInfo(HttpContext.Current.Server.MapPath(SystemDirectories.AppPlugins)),
-                        new DirectoryInfo(HttpContext.Current.Server.MapPath(SystemDirectories.Config)),
+                        new DirectoryInfo(IOHelper.MapPath(SystemDirectories.AppPlugins)),
+                        new DirectoryInfo(IOHelper.MapPath(SystemDirectories.Config)),
                         HttpContext.Current.IsDebuggingEnabled);
                     
                     var sections = GetArray(obj, "sections");
@@ -90,7 +92,7 @@ namespace Umbraco.Core.PropertyEditors.ValueConverters
                 }
                 catch (Exception ex)
                 {
-                    LogHelper.Error<JsonValueConverter>("Could not parse the string " + sourceString + " to a json object", ex);
+                    LogHelper.Error<GridValueConverter>("Could not parse the string " + sourceString + " to a json object", ex);
                 }
             }
 

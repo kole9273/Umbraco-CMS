@@ -14,42 +14,156 @@ function startUpVideosDashboardController($scope, xmlhelper, $log, $http) {
         });
     };
 }
+
 angular.module("umbraco").controller("Umbraco.Dashboard.StartupVideosController", startUpVideosDashboardController);
 
 
-function FormsController($scope, $route, $cookieStore, packageResource) {
+function startUpDynamicContentController($timeout, dashboardResource, assetsService, tourService, eventsService) {
+    var vm = this;
+    var evts = [];
+
+    vm.loading = true;
+    vm.showDefault = false;
+    
+    vm.startTour = startTour;
+
+    function onInit() {
+        // load tours
+        tourService.getGroupedTours().then(function(groupedTours) {
+            vm.tours = groupedTours;
+        });
+    }
+
+    function startTour(tour) {
+        tourService.startTour(tour);
+    }
+
+    // default dashboard content
+    vm.defaultDashboard = {
+        infoBoxes: [
+            {
+                title: "Documentation",
+                description: "Find the answers to your Umbraco questions",
+                url: "https://our.umbraco.org/documentation/?utm_source=core&utm_medium=dashboard&utm_content=text&utm_campaign=documentation/"
+            },
+            {
+                title: "Community",
+                description: "Find the answers or ask your Umbraco questions",
+                url: "https://our.umbraco.org/?utm_source=core&utm_medium=dashboard&utm_content=text&utm_campaign=our_forum"
+            },
+            {
+                title: "Umbraco.tv",
+                description: "Tutorial videos (some are free, some are on subscription)",
+                url: "https://umbraco.tv/?utm_source=core&utm_medium=dashboard&utm_content=text&utm_campaign=tutorial_videos"
+            },
+            {
+                title: "Training",
+                description: "Real-life training and official Umbraco certifications",
+                url: "https://umbraco.com/training/?utm_source=core&utm_medium=dashboard&utm_content=text&utm_campaign=training"
+            }
+        ],
+        articles: [
+            {
+                title: "Umbraco.TV - Learn from the source!",
+                description: "Umbraco.TV will help you go from zero to Umbraco hero at a pace that suits you. Our easy to follow online training videos will give you the fundamental knowledge to start building awesome Umbraco websites.",
+                img: "views/dashboard/default/umbracotv.jpg",
+                url: "https://umbraco.tv/?utm_source=core&utm_medium=dashboard&utm_content=image&utm_campaign=tv",
+                altText: "Umbraco.TV - Hours of Umbraco Video Tutorials",
+                buttonText: "Visit Umbraco.TV"
+            },
+            {
+                title: "Our Umbraco - The Friendliest Community",
+                description: "Our Umbraco - the official community site is your one stop for everything Umbraco. Whether you need a question answered or looking for cool plugins, the world's best and friendliest community is just a click away.",
+                img: "views/dashboard/default/ourumbraco.jpg",
+                url: "https://our.umbraco.org/?utm_source=core&utm_medium=dashboard&utm_content=image&utm_campaign=our",
+                altText: "Our Umbraco",
+                buttonText: "Visit Our Umbraco"
+            }
+        ]
+    };
+
+    evts.push(eventsService.on("appState.tour.complete", function (name, completedTour) {
+        $timeout(function(){
+            angular.forEach(vm.tours, function (tourGroup) {
+                angular.forEach(tourGroup, function (tour) {
+                    if(tour.alias === completedTour.alias) {
+                        tour.completed = true;
+                    }
+                });
+            });
+        });
+    }));
+    
+    //proxy remote css through the local server
+    assetsService.loadCss( dashboardResource.getRemoteDashboardCssUrl("content") );
+    dashboardResource.getRemoteDashboardContent("content").then(
+        function (data) {
+
+            vm.loading = false;
+
+            //test if we have received valid data
+            //we capture it like this, so we avoid UI errors - which automatically triggers ui based on http response code
+            if (data && data.sections) {
+                vm.dashboard = data;
+            } else{
+                vm.showDefault = true;
+            }
+
+        },
+
+        function (exception) {
+            console.error(exception);
+            vm.loading = false;
+            vm.showDefault = true;
+        });
+
+    
+    onInit();
+
+}
+
+angular.module("umbraco").controller("Umbraco.Dashboard.StartUpDynamicContentController", startUpDynamicContentController);
+
+
+function FormsController($scope, $route, $cookieStore, packageResource, localizationService) {
     $scope.installForms = function(){
-        $scope.state = "Installng package";
+        $scope.state = localizationService.localize("packager_installStateDownloading");
         packageResource
             .fetch("CD44CF39-3D71-4C19-B6EE-948E1FAF0525")
-            .then(function(pack){
-              $scope.state = "importing";
-              return packageResource.import(pack);
-            }, $scope.error)
-            .then(function(pack){
-              $scope.state = "Installing";
-              return packageResource.installFiles(pack);
-            }, $scope.error)
-            .then(function(pack){
-              $scope.state = "Restarting, please hold...";
-              return packageResource.installData(pack);
-            }, $scope.error)
-            .then(function(pack){
-              $scope.state = "All done, your browser will now refresh";
-              return packageResource.cleanUp(pack);
-            }, $scope.error)
+            .then(function(pack) {
+                $scope.state = localizationService.localize("packager_installStateImporting");
+                    return packageResource.import(pack);
+                },
+                $scope.error)
+            .then(function(pack) {
+                $scope.state = localizationService.localize("packager_installStateInstalling");
+                    return packageResource.installFiles(pack);
+                },
+                $scope.error)
+            .then(function(pack) {
+                $scope.state = localizationService.localize("packager_installStateRestarting");
+                    return packageResource.installData(pack);
+                },
+                $scope.error)
+            .then(function(pack) {
+                $scope.state = localizationService.localize("packager_installStateComplete");
+                    return packageResource.cleanUp(pack);
+                },
+                $scope.error)
             .then($scope.complete, $scope.error);
     };
 
     $scope.complete = function(result){
         var url = window.location.href + "?init=true";
-        $cookieStore.put("umbPackageInstallId", result.packageGuid); 
+        $cookieStore.put("umbPackageInstallId", result.packageGuid);
         window.location.reload(true);
     };
 
     $scope.error = function(err){
         $scope.state = undefined;
         $scope.error = err;
+        //This will return a rejection meaning that the promise change above will stop
+        return $q.reject();
     };
 
 
@@ -186,60 +300,45 @@ function startupLatestEditsController($scope) {
 }
 angular.module("umbraco").controller("Umbraco.Dashboard.StartupLatestEditsController", startupLatestEditsController);
 
-function MediaFolderBrowserDashboardController($rootScope, $scope, assetsService, $routeParams, $timeout, $element, $location, umbRequestHelper,navigationService, mediaResource, $cookies) {
-        var dialogOptions = $scope.dialogOptions;
+function MediaFolderBrowserDashboardController($rootScope, $scope, $location, contentTypeResource, userService) {
 
-        $scope.filesUploading = [];
-        $scope.nodeId = -1;
+    var currentUser = {};
 
-        $scope.onUploadComplete = function () {
-            navigationService.reloadSection("media");
+    userService.getCurrentUser().then(function (user) {
+
+        currentUser = user;
+
+        // check if the user has access to the root which they will require to see this dashboard
+        if (currentUser.startMediaIds.indexOf(-1) >= 0) {
+
+            //get the system media listview
+            contentTypeResource.getPropertyTypeScaffold(-96)
+                .then(function(dt) {
+
+                    $scope.fakeProperty = {
+                        alias: "contents",
+                        config: dt.config,
+                        description: "",
+                        editor: dt.editor,
+                        hideLabel: true,
+                        id: 1,
+                        label: "Contents:",
+                        validation: {
+                            mandatory: false,
+                            pattern: null
+                        },
+                        value: "",
+                        view: dt.view
+                    };
+
+            });
+
+        } else if (currentUser.startMediaIds.length > 0){
+            // redirect to start node
+            $location.path("/media/media/edit/" + (currentUser.startMediaIds.length === 0 ? -1 : currentUser.startMediaIds[0]));
         }
+
+    });
 
 }
 angular.module("umbraco").controller("Umbraco.Dashboard.MediaFolderBrowserDashboardController", MediaFolderBrowserDashboardController);
-
-
-function ChangePasswordDashboardController($scope, xmlhelper, $log, currentUserResource, formHelper) {
-
-    //create the initial model for change password property editor
-    $scope.changePasswordModel = {
-        alias: "_umb_password",
-        view: "changepassword",
-        config: {},
-        value: {}
-    };
-
-    //go get the config for the membership provider and add it to the model
-    currentUserResource.getMembershipProviderConfig().then(function(data) {
-        $scope.changePasswordModel.config = data;
-        //ensure the hasPassword config option is set to true (the user of course has a password already assigned)
-        //this will ensure the oldPassword is shown so they can change it
-        $scope.changePasswordModel.config.hasPassword = true;
-        $scope.changePasswordModel.config.disableToggle = true;
-    });
-
-    ////this is the model we will pass to the service
-    //$scope.profile = {};
-
-    $scope.changePassword = function() {
-
-        if (formHelper.submitForm({ scope: $scope })) {
-            currentUserResource.changePassword($scope.changePasswordModel.value).then(function(data) {
-
-                //if the password has been reset, then update our model
-                if (data.value) {
-                    $scope.changePasswordModel.value.generatedPassword = data.value;
-                }
-
-                formHelper.resetForm({ scope: $scope, notifications: data.notifications });
-
-            }, function (err) {
-
-                formHelper.handleError(err);
-
-            });
-        }
-    };
-}
-angular.module("umbraco").controller("Umbraco.Dashboard.StartupChangePasswordController", ChangePasswordDashboardController);

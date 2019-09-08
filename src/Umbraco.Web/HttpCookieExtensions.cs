@@ -3,6 +3,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Web;
+using Microsoft.Owin;
 using Umbraco.Core;
 
 namespace Umbraco.Web
@@ -15,6 +16,40 @@ namespace Umbraco.Web
     /// </remarks> 
     internal static class HttpCookieExtensions
     {
+        /// <summary>
+        /// Retrieves an individual cookie from the cookies collection
+        /// </summary>
+        /// <param name="requestHeaders"></param>
+        /// <param name="cookieName"></param>
+        /// <returns></returns>
+        /// <remarks>
+        /// Adapted from: https://stackoverflow.com/a/29057304/5018 because there's an issue with .NET WebApi cookie parsing logic 
+        /// when using requestHeaders.GetCookies() when an invalid cookie name is present.
+        /// </remarks>
+        public static string GetCookieValue(this HttpRequestHeaders requestHeaders, string cookieName)
+        {
+            foreach (var header in requestHeaders)
+            {
+                if (header.Key.Equals("Cookie", StringComparison.InvariantCultureIgnoreCase) == false)
+                    continue;
+                
+                var cookiesHeaderValue = header.Value.FirstOrDefault();
+                if (cookiesHeaderValue == null)
+                    return null;
+
+                var cookieCollection = cookiesHeaderValue.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var cookieNameValue in cookieCollection)
+                {
+                    var parts = cookieNameValue.Split(new[] { '=' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length != 2) continue;
+                    if (parts[0].Trim().Equals(cookieName, StringComparison.InvariantCultureIgnoreCase))
+                        return parts[1].Trim();
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Removes the cookie from the request and the response if it exists
         /// </summary>
@@ -58,6 +93,16 @@ namespace Umbraco.Web
         /// <param name="request"></param>
         /// <returns></returns>
         public static bool HasPreviewCookie(this HttpRequestBase request)
+        {
+            return request.Cookies[Constants.Web.PreviewCookieName] != null;
+        }
+
+        /// <summary>
+        /// Does a preview cookie exist ?
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        public static bool HasPreviewCookie(this IOwinRequest request)
         {
             return request.Cookies[Constants.Web.PreviewCookieName] != null;
         }

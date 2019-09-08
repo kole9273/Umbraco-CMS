@@ -2,11 +2,13 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Web;
 using System.Web.Hosting;
 using log4net;
 using Umbraco.Core.Logging;
 using Umbraco.Core.ObjectResolution;
+using Umbraco.Core.Scoping;
 
 namespace Umbraco.Core
 {
@@ -15,7 +17,7 @@ namespace Umbraco.Core
     /// The abstract class for the Umbraco HttpApplication
     /// </summary>
     /// <remarks>
-    /// This is exposed in the core so that we can have the IApplicationEventHandler in the core project so that 
+    /// This is exposed in the core so that we can have the IApplicationEventHandler in the core project so that
     /// IApplicationEventHandler's can fire/execute outside of the web contenxt (i.e. in console applications)
     /// </remarks>
     public abstract class UmbracoApplicationBase : System.Web.HttpApplication
@@ -34,7 +36,7 @@ namespace Umbraco.Core
         /// </summary>
         internal void StartApplication(object sender, EventArgs e)
         {
-            //take care of unhandled exceptions - there is nothing we can do to 
+            //take care of unhandled exceptions - there is nothing we can do to
             // prevent the entire w3wp process to go down but at least we can try
             // and log the exception
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>
@@ -55,8 +57,15 @@ namespace Umbraco.Core
 
             //And now we can dispose of our startup handlers - save some memory
             ApplicationEventsResolver.Current.Dispose();
-        }
 
+            // after Umbraco has started there is a scope in "context" and that context is
+            // going to stay there and never get destroyed nor reused, so we have to ensure that
+            // the scope is disposed (along with database etc) - reset it all entirely
+            var scopeProvider = ApplicationContext.Current.ScopeProvider as ScopeProvider;
+            if (scopeProvider != null) // can be mocked...
+                scopeProvider.Reset();
+        }
+        
         /// <summary>
         /// Initializes the Umbraco application
         /// </summary>
@@ -64,12 +73,18 @@ namespace Umbraco.Core
         /// <param name="e"></param>
         protected void Application_Start(object sender, EventArgs e)
         {
+            Thread.CurrentThread.SanitizeThreadCulture();
             StartApplication(sender, e);
         }
 
         /// <summary>
         /// Override init and raise the event
         /// </summary>
+        /// <remarks>
+        /// DID YOU KNOW? The Global.asax Init call is the thing that initializes all of the httpmodules, ties up a bunch of stuff with IIS, etc...
+        /// Therefore, since OWIN is an HttpModule when running in IIS/ASP.Net the OWIN startup is not executed until this method fires and by that
+        /// time, Umbraco has performed it's bootup sequence.
+        /// </remarks>
         public override void Init()
         {
             base.Init();
@@ -95,7 +110,7 @@ namespace Umbraco.Core
                     throw;
                 }
             }
-                
+
         }
 
         /// <summary>
@@ -162,7 +177,7 @@ namespace Umbraco.Core
             {
                 return;
             }
-            
+
             Logger.Error<UmbracoApplicationBase>("An unhandled exception occurred", exc);
 
             OnApplicationError(sender, e);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Web;
 using System.Web.UI;
@@ -136,8 +137,8 @@ namespace umbraco.editorControls.tinyMCE3
                     config.Add("plugins", _plugins);
 
                     // Check advanced settings
-                    if (UmbracoEnsuredPage.CurrentUser != null && ("," + _advancedUsers + ",").IndexOf("," + UmbracoEnsuredPage.CurrentUser.UserType.Id + ",") >
-                        -1)
+                    var advancedUserGroupNames = _advancedUsers.Split(',');
+                    if (UmbracoEnsuredPage.CurrentUser != null && advancedUserGroupNames.Intersect(UmbracoEnsuredPage.CurrentUser.GetGroups()).Any())
                         config.Add("umbraco_advancedMode", "true");
                     else
                         config.Add("umbraco_advancedMode", "false");
@@ -164,13 +165,8 @@ namespace umbraco.editorControls.tinyMCE3
                                     foreach (StylesheetProperty p in s.Properties)
                                     {
                                         if (styles != string.Empty)
-                                        {
                                             styles += ";";
-                                        }
-                                        if (p.Alias.StartsWith("."))
-                                            styles += p.Text + "=" + p.Alias;
-                                        else
-                                            styles += p.Text + "=" + p.Alias;
+                                        styles += p.Text + "=" + p.Alias;
                                     }
 
                                     cssFiles += ",";

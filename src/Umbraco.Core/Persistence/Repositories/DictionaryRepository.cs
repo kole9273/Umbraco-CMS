@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Umbraco.Core.Cache;
 using Umbraco.Core.Logging;
 using Umbraco.Core.Models;
 using Umbraco.Core.Models.EntityBase;
@@ -19,30 +20,35 @@ namespace Umbraco.Core.Persistence.Repositories
     /// </summary>
     internal class DictionaryRepository : PetaPocoRepositoryBase<int, IDictionaryItem>, IDictionaryRepository
     {
-        private readonly ILanguageRepository _languageRepository;
-
-        public DictionaryRepository(IDatabaseUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider syntax, ILanguageRepository languageRepository)
+        public DictionaryRepository(IScopeUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider syntax)
             : base(work, cache, logger, syntax)
-		{
-		    _languageRepository = languageRepository;
-		}
+        { }
+
+        protected override IRepositoryCachePolicy<IDictionaryItem, int> CreateCachePolicy(IRuntimeCacheProvider runtimeCache)
+        {
+            var options = new RepositoryCachePolicyOptions
+            {
+                //allow zero to be cached
+                GetAllCacheAllowZeroCount = true
+            };
+
+            return new SingleItemsOnlyRepositoryCachePolicy<IDictionaryItem, int>(runtimeCache, options);
+        }
 
         #region Overrides of RepositoryBase<int,DictionaryItem>
 
         protected override IDictionaryItem PerformGet(int id)
         {
             var sql = GetBaseQuery(false)
-                .Where(GetBaseWhereClause(), new {Id = id})
+                .Where(GetBaseWhereClause(), new { Id = id })
+                //must be sorted this way for the relator to work
                 .OrderBy<DictionaryDto>(x => x.UniqueId, SqlSyntax);
 
             var dto = Database.Fetch<DictionaryDto, LanguageTextDto, DictionaryDto>(new DictionaryLanguageTextRelator().Map, sql).FirstOrDefault();
             if (dto == null)
                 return null;
 
-            //This will be cached
-            var allLanguages = _languageRepository.GetAll().ToArray();
-
-            var entity = ConvertFromDto(dto, allLanguages);
+            var entity = ConvertFromDto(dto);
 
             //on initial construction we don't want to have dirty properties tracked
             // http://issues.umbraco.org/issue/U4-1946
@@ -56,14 +62,14 @@ namespace Umbraco.Core.Persistence.Repositories
             var sql = GetBaseQuery(false).Where("cmsDictionary.pk > 0");
             if (ids.Any())
             {
-                sql.Where("cmsDictionary.pk in (@ids)", new { ids = ids });                
+                sql.Where("cmsDictionary.pk in (@ids)", new { ids = ids });
             }
 
-            //This will be cached
-            var allLanguages = _languageRepository.GetAll().ToArray();
+            //must be sorted this way for the relator to work
+            sql.OrderBy<DictionaryDto>(x => x.UniqueId, SqlSyntax);
 
             return Database.Fetch<DictionaryDto, LanguageTextDto, DictionaryDto>(new DictionaryLanguageTextRelator().Map, sql)
-                    .Select(dto => ConvertFromDto(dto, allLanguages));
+                    .Select(dto => ConvertFromDto(dto));
         }
 
         protected override IEnumerable<IDictionaryItem> PerformGetByQuery(IQuery<IDictionaryItem> query)
@@ -71,13 +77,11 @@ namespace Umbraco.Core.Persistence.Repositories
             var sqlClause = GetBaseQuery(false);
             var translator = new SqlTranslator<IDictionaryItem>(sqlClause, query);
             var sql = translator.Translate();
+            //must be sorted this way for the relator to work
             sql.OrderBy<DictionaryDto>(x => x.UniqueId, SqlSyntax);
 
-            //This will be cached
-            var allLanguages = _languageRepository.GetAll().ToArray();
-
             return Database.Fetch<DictionaryDto, LanguageTextDto, DictionaryDto>(new DictionaryLanguageTextRelator().Map, sql)
-                .Select(x => ConvertFromDto(x, allLanguages));
+                .Select(x => ConvertFromDto(x));
         }
 
         #endregion
@@ -87,7 +91,7 @@ namespace Umbraco.Core.Persistence.Repositories
         protected override Sql GetBaseQuery(bool isCount)
         {
             var sql = new Sql();
-            if(isCount)
+            if (isCount)
             {
                 sql.Select("COUNT(*)")
                     .From<DictionaryDto>(SqlSyntax);
@@ -95,9 +99,9 @@ namespace Umbraco.Core.Persistence.Repositories
             else
             {
                 sql.Select("*")
-                   .From<DictionaryDto>(SqlSyntax)
-                   .LeftJoin<LanguageTextDto>(SqlSyntax)
-                   .On<DictionaryDto, LanguageTextDto>(SqlSyntax, left => left.UniqueId, right => right.UniqueId);
+                    .From<DictionaryDto>(SqlSyntax)
+                    .LeftJoin<LanguageTextDto>(SqlSyntax)
+                    .On<DictionaryDto, LanguageTextDto>(SqlSyntax, left => left.UniqueId, right => right.UniqueId);
             }
             return sql;
         }
@@ -123,26 +127,28 @@ namespace Umbraco.Core.Persistence.Repositories
 
         protected override void PersistNewItem(IDictionaryItem entity)
         {
-            ((DictionaryItem)entity).AddingEntity();
+            var dictionaryItem = ((DictionaryItem) entity);
 
-            foreach (var translation in entity.Translations)
+            dictionaryItem.AddingEntity();
+
+            foreach (var translation in dictionaryItem.Translations)
                 translation.Value = translation.Value.ToValidXmlString();
 
             var factory = new DictionaryItemFactory();
-            var dto = factory.BuildDto(entity);
+            var dto = factory.BuildDto(dictionaryItem);
 
             var id = Convert.ToInt32(Database.Insert(dto));
-            entity.Id = id;
+            dictionaryItem.Id = id;
 
-            var translationFactory = new DictionaryTranslationFactory(entity.Key, null);
-            foreach (var translation in entity.Translations)
+            var translationFactory = new DictionaryTranslationFactory(dictionaryItem.Key);
+            foreach (var translation in dictionaryItem.Translations)
             {
                 var textDto = translationFactory.BuildDto(translation);
                 translation.Id = Convert.ToInt32(Database.Insert(textDto));
-                translation.Key = entity.Key;
+                translation.Key = dictionaryItem.Key;
             }
 
-            entity.ResetDirtyProperties();
+            dictionaryItem.ResetDirtyProperties();
         }
 
         protected override void PersistUpdatedItem(IDictionaryItem entity)
@@ -157,11 +163,11 @@ namespace Umbraco.Core.Persistence.Repositories
 
             Database.Update(dto);
 
-            var translationFactory = new DictionaryTranslationFactory(entity.Key, null);
+            var translationFactory = new DictionaryTranslationFactory(entity.Key);
             foreach (var translation in entity.Translations)
             {
                 var textDto = translationFactory.BuildDto(translation);
-                if(translation.HasIdentity)
+                if (translation.HasIdentity)
                 {
                     Database.Update(textDto);
                 }
@@ -175,25 +181,27 @@ namespace Umbraco.Core.Persistence.Repositories
             entity.ResetDirtyProperties();
 
             //Clear the cache entries that exist by uniqueid/item key
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.ItemKey));
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.Key));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.ItemKey));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.Key));
         }
 
         protected override void PersistDeletedItem(IDictionaryItem entity)
         {
             RecursiveDelete(entity.Key);
 
-            Database.Delete<LanguageTextDto>("WHERE UniqueId = @Id", new { Id = entity.Key});
+            Database.Delete<LanguageTextDto>("WHERE UniqueId = @Id", new { Id = entity.Key });
             Database.Delete<DictionaryDto>("WHERE id = @Id", new { Id = entity.Key });
 
             //Clear the cache entries that exist by uniqueid/item key
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.ItemKey));
-            RuntimeCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.Key));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.ItemKey));
+            IsolatedCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(entity.Key));
+
+            entity.DeletedDate = DateTime.Now;
         }
 
         private void RecursiveDelete(Guid parentId)
         {
-            var list = Database.Fetch<DictionaryDto>("WHERE parent = @ParentId", new {ParentId = parentId});
+            var list = Database.Fetch<DictionaryDto>("WHERE parent = @ParentId", new { ParentId = parentId });
             foreach (var dto in list)
             {
                 RecursiveDelete(dto.UniqueId);
@@ -202,14 +210,14 @@ namespace Umbraco.Core.Persistence.Repositories
                 Database.Delete<DictionaryDto>("WHERE id = @Id", new { Id = dto.UniqueId });
 
                 //Clear the cache entries that exist by uniqueid/item key
-                RuntimeCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(dto.Key));
-                RuntimeCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(dto.UniqueId));
+                IsolatedCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(dto.Key));
+                IsolatedCache.ClearCacheItem(GetCacheIdKey<IDictionaryItem>(dto.UniqueId));
             }
         }
 
         #endregion
 
-        protected IDictionaryItem ConvertFromDto(DictionaryDto dto, ILanguage[] allLanguages)
+        protected IDictionaryItem ConvertFromDto(DictionaryDto dto)
         {
             var factory = new DictionaryItemFactory();
             var entity = factory.BuildEntity(dto);
@@ -217,12 +225,10 @@ namespace Umbraco.Core.Persistence.Repositories
             var list = new List<IDictionaryTranslation>();
             foreach (var textDto in dto.LanguageTextDtos)
             {
-                //Assuming this is cached!
-                var language = allLanguages.FirstOrDefault(x => x.Id == textDto.LanguageId);
-                if (language == null)
+                if (textDto.LanguageId <= 0)
                     continue;
 
-                var translationFactory = new DictionaryTranslationFactory(dto.UniqueId, language);
+                var translationFactory = new DictionaryTranslationFactory(dto.UniqueId);
                 list.Add(translationFactory.BuildEntity(textDto));
             }
             entity.Translations = list;
@@ -232,17 +238,19 @@ namespace Umbraco.Core.Persistence.Repositories
 
         public IDictionaryItem Get(Guid uniqueId)
         {
-            using (var uniqueIdRepo = new DictionaryByUniqueIdRepository(this, UnitOfWork, RepositoryCache, Logger, SqlSyntax))
+            // note: normal to use GlobalCache here since we're passing it to a new repository
+            using (var uniqueIdRepo = new DictionaryByUniqueIdRepository(this, UnitOfWork, GlobalCache, Logger, SqlSyntax))
             {
-                return uniqueIdRepo.Get(uniqueId);    
+                return uniqueIdRepo.Get(uniqueId);
             }
         }
 
         public IDictionaryItem Get(string key)
         {
-            using (var keyRepo = new DictionaryByKeyRepository(this, UnitOfWork, RepositoryCache, Logger, SqlSyntax))
+            // note: normal to use GlobalCache here since we're passing it to a new repository
+            using (var keyRepo = new DictionaryByKeyRepository(this, UnitOfWork, GlobalCache, Logger, SqlSyntax))
             {
-                return keyRepo.Get(key);    
+                return keyRepo.Get(key);
             }
         }
 
@@ -252,11 +260,21 @@ namespace Umbraco.Core.Persistence.Repositories
             return GetByQuery(query);
         }
 
+        public Dictionary<string, Guid> GetDictionaryItemKeyMap()
+        {
+            var columns = new[] { "key", "id" }.Select(x => (object) SqlSyntax.GetQuotedColumnName(x)).ToArray();
+            var sql = new Sql().Select(columns).From<DictionaryDto>(SqlSyntax);
+            return Database.Fetch<DictionaryItemKeyIdDto>(sql).ToDictionary(x => x.Key, x => x.Id);
+        }
+
+        private class DictionaryItemKeyIdDto
+        {
+            public string Key { get; set; }
+            public Guid Id { get; set; }
+        }
+
         public IEnumerable<IDictionaryItem> GetDictionaryItemDescendants(Guid? parentId)
         {
-            //This will be cached
-            var allLanguages = _languageRepository.GetAll().ToArray();
-
             //This methods will look up children at each level, since we do not store a path for dictionary (ATM), we need to do a recursive
             // lookup to get descendants. Currently this is the most efficient way to do it
 
@@ -272,10 +290,12 @@ namespace Umbraco.Core.Persistence.Repositories
 
                         var translator = new SqlTranslator<IDictionaryItem>(sqlClause, Query<IDictionaryItem>.Builder);
                         var sql = translator.Translate();
+
+                        //must be sorted this way for the relator to work
                         sql.OrderBy<DictionaryDto>(x => x.UniqueId, SqlSyntax);
 
                         return Database.Fetch<DictionaryDto, LanguageTextDto, DictionaryDto>(new DictionaryLanguageTextRelator().Map, sql)
-                            .Select(x => ConvertFromDto(x, allLanguages));
+                            .Select(x => ConvertFromDto(x));
                     });
             };
 
@@ -284,14 +304,14 @@ namespace Umbraco.Core.Persistence.Repositories
                 : getItemsFromParents(new[] { parentId.Value });
 
             return childItems.SelectRecursive(items => getItemsFromParents(items.Select(x => x.Key).ToArray())).SelectMany(items => items);
-            
+
         }
 
         private class DictionaryByUniqueIdRepository : SimpleGetRepository<Guid, IDictionaryItem, DictionaryDto>
         {
             private readonly DictionaryRepository _dictionaryRepository;
 
-            public DictionaryByUniqueIdRepository(DictionaryRepository dictionaryRepository, IDatabaseUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax)
+            public DictionaryByUniqueIdRepository(DictionaryRepository dictionaryRepository, IScopeUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax)
                 : base(work, cache, logger, sqlSyntax)
             {
                 _dictionaryRepository = dictionaryRepository;
@@ -299,6 +319,9 @@ namespace Umbraco.Core.Persistence.Repositories
 
             protected override IEnumerable<DictionaryDto> PerformFetch(Sql sql)
             {
+                //must be sorted this way for the relator to work
+                sql.OrderBy<DictionaryDto>(x => x.UniqueId, SqlSyntax);
+
                 return Database.Fetch<DictionaryDto, LanguageTextDto, DictionaryDto>(new DictionaryLanguageTextRelator().Map, sql);
             }
 
@@ -314,19 +337,28 @@ namespace Umbraco.Core.Persistence.Repositories
 
             protected override IDictionaryItem ConvertToEntity(DictionaryDto dto)
             {
-                //This will be cached
-                var allLanguages = _dictionaryRepository._languageRepository.GetAll().ToArray();
-                return _dictionaryRepository.ConvertFromDto(dto, allLanguages);
+                return _dictionaryRepository.ConvertFromDto(dto);
             }
 
             protected override object GetBaseWhereClauseArguments(Guid id)
             {
-                return new {Id = id};
+                return new { Id = id };
             }
 
             protected override string GetWhereInClauseForGetAll()
             {
                 return "cmsDictionary." + SqlSyntax.GetQuotedColumnName("id") + " in (@ids)";
+            }
+
+            protected override IRepositoryCachePolicy<IDictionaryItem, Guid> CreateCachePolicy(IRuntimeCacheProvider runtimeCache)
+            {
+                var options = new RepositoryCachePolicyOptions
+                {
+                    //allow zero to be cached
+                    GetAllCacheAllowZeroCount = true
+                };
+
+                return new SingleItemsOnlyRepositoryCachePolicy<IDictionaryItem, Guid>(runtimeCache, options);
             }
         }
 
@@ -334,7 +366,7 @@ namespace Umbraco.Core.Persistence.Repositories
         {
             private readonly DictionaryRepository _dictionaryRepository;
 
-            public DictionaryByKeyRepository(DictionaryRepository dictionaryRepository, IDatabaseUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax)
+            public DictionaryByKeyRepository(DictionaryRepository dictionaryRepository, IScopeUnitOfWork work, CacheHelper cache, ILogger logger, ISqlSyntaxProvider sqlSyntax)
                 : base(work, cache, logger, sqlSyntax)
             {
                 _dictionaryRepository = dictionaryRepository;
@@ -342,6 +374,9 @@ namespace Umbraco.Core.Persistence.Repositories
 
             protected override IEnumerable<DictionaryDto> PerformFetch(Sql sql)
             {
+                //must be sorted this way for the relator to work
+                sql.OrderBy<DictionaryDto>(x => x.UniqueId, SqlSyntax);
+
                 return Database.Fetch<DictionaryDto, LanguageTextDto, DictionaryDto>(new DictionaryLanguageTextRelator().Map, sql);
             }
 
@@ -357,9 +392,7 @@ namespace Umbraco.Core.Persistence.Repositories
 
             protected override IDictionaryItem ConvertToEntity(DictionaryDto dto)
             {
-                //This will be cached
-                var allLanguages = _dictionaryRepository._languageRepository.GetAll().ToArray();
-                return _dictionaryRepository.ConvertFromDto(dto, allLanguages);
+                return _dictionaryRepository.ConvertFromDto(dto);
             }
 
             protected override object GetBaseWhereClauseArguments(string id)
@@ -371,17 +404,17 @@ namespace Umbraco.Core.Persistence.Repositories
             {
                 return "cmsDictionary." + SqlSyntax.GetQuotedColumnName("key") + " in (@ids)";
             }
-        }
 
-        /// <summary>
-        /// Dispose disposable properties
-        /// </summary>
-        /// <remarks>
-        /// Ensure the unit of work is disposed
-        /// </remarks>
-        protected override void DisposeResources()
-        {
-            _languageRepository.Dispose();
+            protected override IRepositoryCachePolicy<IDictionaryItem, string> CreateCachePolicy(IRuntimeCacheProvider runtimeCache)
+            {
+                var options = new RepositoryCachePolicyOptions
+                {
+                    //allow zero to be cached
+                    GetAllCacheAllowZeroCount = true
+                };
+
+                return new SingleItemsOnlyRepositoryCachePolicy<IDictionaryItem, string>(runtimeCache, options);
+            }
         }
     }
 }

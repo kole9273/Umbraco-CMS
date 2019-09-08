@@ -173,26 +173,28 @@ namespace umbraco.presentation.webservices
 
         private void SortContent(string[] ids, int parentId)
         {
-            var contentService = base.ApplicationContext.Services.ContentService;
-            var sortedContent = new List<IContent>();
+            var contentService = ApplicationContext.Services.ContentService;
             try
             {
-                for (var i = 0; i < ids.Length; i++)
-                {
-                    var id = int.Parse(ids[i]);
-                    var c = contentService.GetById(id);
-                    sortedContent.Add(c);
-                }
-
                 // Save content with new sort order and update db+cache accordingly
-                var sorted = contentService.Sort(sortedContent);
+                var intIds = new List<int>();
+                foreach (var stringId in ids)
+                {
+                    int intId;
+                    if (int.TryParse(stringId, out intId))
+                        intIds.Add(intId);
+                }
+                var sorted = contentService.Sort(intIds.ToArray());
 
                 // refresh sort order on cached xml
                 // but no... this is not distributed - solely relying on content service & events should be enough
                 //content.Instance.SortNodes(parentId);
 
                 //send notifications! TODO: This should be put somewhere centralized instead of hard coded directly here
-                ApplicationContext.Services.NotificationService.SendNotification(contentService.GetById(parentId), ActionSort.Instance, UmbracoContext, ApplicationContext);
+                if (parentId > 0)
+                {
+                    ApplicationContext.Services.NotificationService.SendNotification(contentService.GetById(parentId), ActionSort.Instance, UmbracoContext, ApplicationContext);
+                }
 
             }
             catch (Exception ex)

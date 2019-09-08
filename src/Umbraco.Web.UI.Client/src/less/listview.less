@@ -3,8 +3,7 @@
 
 .umb-listview{width: auto !important;}
 .umb-listview .dropdown-menu {
-  border: 1px solid #ccc;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid @gray-7;
   -webkit-border-radius: 0px;
   -moz-border-radius: 0px;
   border-radius: 0px;
@@ -13,16 +12,16 @@
   box-shadow: 0 5px 10px rgba(0, 0, 0, 0);
 }
 
-.dropdown-menu > li > a:hover, 
-.dropdown-menu > li > a:focus, 
-.dropdown-submenu:hover > a, 
+.dropdown-menu > li > a:hover,
+.dropdown-menu > li > a:focus,
+.dropdown-submenu:hover > a,
 .dropdown-submenu:focus > a {
   color: @black;
-  background: @grayLighter;
+  background: @gray-10;
 }
 
 .umb-listview table {
-	border: 1px solid @grayLight;
+	border: 1px solid @gray-8;
 }
 
 .umb-listview table caption {
@@ -32,7 +31,11 @@
 }
 
 .umb-sub-header {
-  padding: 0 0 20px 0
+  padding: 0 0 20px 0;
+}
+
+.umb-sub-header .header-content-right {
+  float: right;
 }
 
 /* listview search */
@@ -74,29 +77,19 @@
   transition: all .5s;
   width: 60px;
   padding: 4px 0 4px 20px;
-  border: 1px solid @grayLight;
+  border: 1px solid @gray-8;
 }
 
-.umb-listview table input::-webkit-input-placeholder {
-   color: @gray;
-}
-
-.umb-listview table input:-moz-placeholder {
-   color: @gray;
-}
-
-.umb-listview table input::-moz-placeholder {
-   color: @gray;
-}
-
-.umb-listview table input:-ms-input-placeholder
- {
-   color: @gray;
+.umb-listview table input::-webkit-input-placeholder,
+.umb-listview table input:-moz-placeholder,
+.umb-listview table input::-moz-placeholder,
+.umb-listview table input:-ms-input-placeholder {
+  color: @gray-3;
 }
 
 .umb-listview table input[type="text"]:focus {
   width: 200px;
-  border: 1px solid @grayLight;
+  border: 1px solid @gray-8;
   background: @white;
   color: @black
 }
@@ -116,25 +109,25 @@
 }
 
 .umb-listview .icon-star {
-  color: @grayLight
+  color: @gray-8;
 }
 
 .umb-listview .selected i.icon, .umb-listview tbody tr:hover i.icon{display: none}
-.umb-listview .selected input[type="checkbox"], 
+.umb-listview .selected input[type="checkbox"],
 .umb-listview tr:hover input[type="checkbox"]{display: inline-block !important;}
-.umb-listview .inactive{color: @grayLight;}
+.umb-listview .inactive{color: @gray-8;}
 
 .umb-listview .selected td{font-weight: bold;}
 
 .umb-listview table thead {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: bold;
   text-transform: uppercase;
-  background-color: @grayLighter;
+  background-color: @white;
 }
 
 .umb-listview table tfoot {
-	background: @grayLighter;
+	background: @gray-10;
 }
 
 .umb-listview table tfoot td:last-child {
@@ -148,59 +141,18 @@
 .umb-listview .label {
   color: @black;
   text-shadow:none;
-  background: @grayLighter;
-  border: 1px solid @grayLight;
-  font-size: 11px;
-  font-weight: 400
+  background: @gray-10;
+  border: 1px solid @gray-8;
+  font-size: 12px;
+  font-weight: normal;
 }
 
 .umb-listview .table-striped tbody > tr:nth-child(even) > td, .umb-listview .table-striped tbody > tr:nth-child(even) > th {
-  background-color: @grayLighter
+  background-color: @gray-10;
 }
 
 .table-striped tbody > tr:nth-child(odd) > td, .table-striped tbody > tr:nth-child(odd) > th {
   background: none
-}
-
-.umb-listview .pagination {
-  margin: 0;
-}
-
-.umb-listview .table th {
-  font-weight: normal
-}
-
-.umb-listview .showing {
-  padding: 8px 4px 2px 4px;
-  background: none;
-  font-size: 11px;
-  color: #b0b0b0
-}
-
-.umb-listview .pagination ul {
-  -webkit-border-radius: 0px;
-  -moz-border-radius: 0px;
-  border-radius: 0px;
-  -webkit-box-shadow: 0 1px 2px rgba(0, 0, 0, 0);
-  -moz-box-shadow: 0 1px 2px rgba(0, 0, 0, 0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0);
-  background: none
-}
-
-.umb-listview .pagination ul > li > a, .pagination ul > li > span {
-  border:none;
-  padding: 8px 4px 2px 4px;
-  background: none;
-  font-size: 11px;
-  color: #b0b0b0
-}
-
-.umb-listview .pagination ul > li.active > a, .umb-listview .pagination ul > li > a:hover {
-  color: @black;
-}
-
-.umb-listview .pagination ul > li.disabled > a, .umb-listview .pagination ul > li.disabled > a:hover {
-  color: @grayLight;
 }
 
 /* TEMP */
@@ -232,9 +184,90 @@
 }
 
 .umb-listview .table-striped tbody > tr:nth-child(even) > td i, .umb-listview .table-striped tbody > tr:nth-child(even) > th i{
-  background-color: @grayLighter
+  background-color: @gray-10;
 }
 
-.table-striped tbody i:hover {
+/* don't hide all icons, e.g. for a sortable handle */
+.umb-listview .table-striped tbody i:not(.handle):hover {
   display: none !important
+}
+
+/* ---------- LAYOUTS ---------- */
+
+.list-view-layouts {
+
+}
+
+.list-view-layout {
+   display: flex;
+   align-items: center;
+   padding: 10px 15px;
+   background: @gray-10;
+   margin-bottom: 1px;
+}
+
+.list-view-layout__sort-handle {
+   font-size: 14px;
+   color: @gray-8;
+   margin-right: 15px;
+}
+
+.list-view-layout__name {
+   flex: 5;
+   font-weight: bold;
+   margin-right: 15px;
+   display: flex;
+   align-content: center;
+   flex-wrap: wrap;
+   line-height: 1.2em;
+}
+
+.list-view-layout__name-text {
+   margin-right: 3px;
+}
+
+.list-view-layout__system {
+   font-size: 10px;
+   font-weight: normal;
+}
+
+.list-view-layout__path {
+   flex: 10;
+   margin-right: 15px;
+}
+
+.list-view-layout__icon {
+   font-size: 18px;
+   margin-right: 10px;
+   vertical-align: middle;
+   border: 1px solid @gray-8;
+   background: @white;
+   padding: 6px 8px;
+   display: block;
+}
+
+.list-view-layout__icon:hover,
+.list-view-layout__icon:focus,
+.list-view-layout__icon:active {
+   text-decoration: none;
+}
+
+.list-view-layout__remove {
+    position: relative;
+    cursor: pointer;
+}
+
+.list-view-add-layout {
+   margin-top: 10px;
+   color: @turquoise-d1;
+   border: 1px dashed @gray-8;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   padding: 5px 0;
+   box-sizing: border-box;
+}
+
+.list-view-add-layout:hover {
+   text-decoration: none;
 }
